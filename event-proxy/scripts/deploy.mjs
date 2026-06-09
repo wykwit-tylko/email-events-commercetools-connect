@@ -674,6 +674,20 @@ async function main() {
     console.log(`Step 3 completed in ${formatDuration(Date.now() - stepStart)}\n`);
   }
 
+  function reauthenticate() {
+    console.log("--- Re-authenticating with commercetools ---");
+    run(
+      [
+        "commercetools auth login",
+        "--client-credentials",
+        `--client-id ${env.CTP_CLIENT_ID}`,
+        `--client-secret ${env.CTP_CLIENT_SECRET}`,
+        `--region ${resolvedRegion}`,
+        `--project-key ${env.CTP_PROJECT_KEY}`,
+      ].join(" ")
+    );
+  }
+
   // ── Step 4: Stage or create connector ─────────────────────────────────────
   if (shouldRun("stage", from)) {
     const stepStart = Date.now();
@@ -718,6 +732,10 @@ async function main() {
 
     const stepStart = Date.now();
     console.log("--- Step 7: Deploy ---");
+
+    // Re-authenticate before deployment because the token may have expired
+    // while waiting for connector publication in Step 5
+    reauthenticate();
 
     // Try update in-place first
     if (oldDeployments.length > 0) {

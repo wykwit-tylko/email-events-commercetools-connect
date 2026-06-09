@@ -5,6 +5,7 @@ import {
   isOrderCreatedNotification,
 } from '../notifications/platform-message';
 import { renderOrderCreatedEmail } from '../templates/order-created';
+import { errorFields, logger } from '../shared/logger';
 
 export async function handleQueue(
   batch: MessageBatch<EnqueuedCommerceNotification>,
@@ -21,8 +22,15 @@ async function handleQueueMessage(
 ): Promise<void> {
   const notification = message.body;
 
+  logger.info('email-worker processing message', {
+    queueMessageId: message.id,
+    notificationType: notification?.notificationType,
+    type: notification?.type,
+    notificationId: notification?.id,
+  });
+
   if (!isOrderCreatedNotification(notification)) {
-    console.log('email-worker ignored commerce notification', {
+    logger.info('email-worker ignored commerce notification', {
       queueMessageId: message.id,
       notificationType: notification?.notificationType,
       type: notification?.type,
@@ -31,22 +39,37 @@ async function handleQueueMessage(
     return;
   }
 
+  logger.info('email-worker order created notification matched', {
+    queueMessageId: message.id,
+    notificationId: notification.id,
+    to: notification.order.customerEmail,
+  });
+
   if (await wasAlreadySent(env, notification.id)) {
-    console.log('email-worker skipped duplicate notification', {
+    logger.info('email-worker skipped duplicate notification', {
       notificationId: notification.id,
     });
     message.ack();
     return;
   }
 
+  logger.info('email-worker dedupe passed', {
+    notificationId: notification.id,
+  });
+
   if (!emailSendingEnabled(env)) {
-    console.log('email-worker email sending disabled', {
+    logger.info('email-worker email sending disabled', {
       notificationId: notification.id,
       to: notification.order.customerEmail,
     });
     message.ack();
     return;
   }
+
+  logger.info('email-worker sending email', {
+    notificationId: notification.id,
+    to: notification.order.customerEmail,
+  });
 
   try {
     await sendEmail(env, {
@@ -54,10 +77,15 @@ async function handleQueueMessage(
       email: renderOrderCreatedEmail(notification),
     });
     await markSent(env, notification.id);
-  } catch (error) {
-    console.error('email-worker send failed', {
+    logger.info('email-worker email sent and dedupe recorded', {
       notificationId: notification.id,
-      error: error instanceof Error ? error.message : String(error),
+      to: notification.order.customerEmail,
+    });
+  } catch (error) {
+    logger.error('email-worker send failed', {
+      notificationId: notification.id,
+      to: notification.order.customerEmail,
+      ...errorFields(error),
     });
   }
 

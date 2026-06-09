@@ -583,13 +583,12 @@ function pollDeploymentStatus(targetRef, isId = false) {
   return false;
 }
 
-function createDeployment(region, configFlags, env) {
+function createDeployment(region, configFlags) {
   const deployCommandParts = [
     "commercetools connect deployment create",
     `--region ${region}`,
     `--connector-key ${CONNECTOR_KEY}`,
     `--type ${DEPLOYMENT_TYPE}`,
-    `--project-key ${env.CTP_PROJECT_KEY}`,
     ...configFlags,
   ];
   const deployCommand = deployCommandParts.join(" ");
@@ -623,13 +622,12 @@ function createDeployment(region, configFlags, env) {
   return { deploymentKey, deploymentId };
 }
 
-function updateDeployment(deploymentRef, region, configFlags, env, isId = false) {
+function updateDeployment(deploymentRef, region, configFlags, isId = false) {
   const refFlag = isId ? `--id ${deploymentRef}` : `--key ${deploymentRef}`;
   const updateCommandParts = [
     "commercetools connect deployment update",
     refFlag,
     `--region ${region}`,
-    `--project-key ${env.CTP_PROJECT_KEY}`,
     ...configFlags,
   ];
   const updateCommand = updateCommandParts.join(" ");
@@ -857,7 +855,6 @@ async function main() {
         target.key || target.id,
         resolvedRegion,
         configFlags,
-        env,
         !target.key, // use id if no key
       );
 
@@ -873,7 +870,7 @@ async function main() {
     // Create new deployment if update failed or no existing deployment
     if (!newDeployment) {
       console.log("\nCreating new deployment...");
-      newDeployment = createDeployment(resolvedRegion, configFlags, env);
+      newDeployment = createDeployment(resolvedRegion, configFlags);
       deploymentMethod = "create";
     }
 

@@ -1,4 +1,4 @@
-import type { DeliveryFormat, SubscriptionConfig } from '../config/env.js';
+import type { CtpConfig, DeliveryFormat, SubscriptionConfig } from '../config/env.js';
 
 export type Destination =
   | {
@@ -37,7 +37,7 @@ export type SubscriptionDraft = {
 export class CommercetoolsClient {
   private token: string | undefined;
 
-  constructor(private readonly config: SubscriptionConfig) {}
+  constructor(private readonly config: CtpConfig) {}
 
   async getSubscriptionByKey(key: string): Promise<Subscription | undefined> {
     const response = await this.request(`/subscriptions/key=${encodeURIComponent(key)}`);
@@ -95,6 +95,21 @@ export class CommercetoolsClient {
       `/subscriptions/key=${encodeURIComponent(options.key)}?version=${options.version}`,
       { method: 'DELETE' },
     );
+  }
+
+  async getCustomerById(id: string): Promise<{ email: string } | undefined> {
+    const response = await this.request(`/customers/${encodeURIComponent(id)}`);
+
+    if (response.status === 404) {
+      return undefined;
+    }
+
+    const customer = await this.parseJsonResponse<{ email?: string }>(response);
+    if (!customer.email) {
+      return undefined;
+    }
+
+    return { email: customer.email };
   }
 
   private async request(

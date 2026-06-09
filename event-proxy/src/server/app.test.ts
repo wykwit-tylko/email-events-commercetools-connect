@@ -265,4 +265,60 @@ describe('event proxy app', () => {
 
     await request(app).get('/event-proxy/dev/messages').expect(404);
   });
+
+  it('skips token messages when value is absent', async () => {
+    const publisher = new FakePublisher();
+    const app = createApp({
+      config: baseConfig,
+      publisher,
+      logger: createSilentLogger(),
+    });
+
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"notificationType":"Message","type":"CustomerEmailTokenCreated","customerId":"cust-1","expiresAt":"2026-06-10T12:00:00.000Z"}')
+      .expect(200);
+
+    expect(publisher.published).toHaveLength(0);
+  });
+
+  it('skips token messages when customerEmail is missing and no commercetools client', async () => {
+    const publisher = new FakePublisher();
+    const app = createApp({
+      config: baseConfig,
+      publisher,
+      logger: createSilentLogger(),
+    });
+
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"notificationType":"Message","type":"CustomerEmailTokenCreated","customerId":"cust-1","expiresAt":"2026-06-10T12:00:00.000Z","value":"token-123"}')
+      .expect(200);
+
+    expect(publisher.published).toHaveLength(0);
+  });
+
+  it('forwards token messages with both value and customerEmail', async () => {
+    const publisher = new FakePublisher();
+    const app = createApp({
+      config: baseConfig,
+      publisher,
+      logger: createSilentLogger(),
+    });
+
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"notificationType":"Message","type":"CustomerEmailTokenCreated","customerId":"cust-1","customerEmail":"user@example.com","expiresAt":"2026-06-10T12:00:00.000Z","value":"token-123"}')
+      .expect(200);
+
+    expect(publisher.published).toHaveLength(1);
+    expect(publisher.published[0]?.payload).toMatchObject({
+      type: 'CustomerEmailTokenCreated',
+      customerEmail: 'user@example.com',
+      value: 'token-123',
+    });
+  });
 });

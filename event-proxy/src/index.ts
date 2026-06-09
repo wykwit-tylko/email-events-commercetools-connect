@@ -1,12 +1,15 @@
-import { loadAppConfig, type AppConfig } from './config/env.js';
+import { loadAppConfig, loadCtpConfig, type AppConfig } from './config/env.js';
 import { InspectionStore } from './dev-inspection/inspection-store.js';
 import { CloudflareQueuePublisher } from './infra/cloudflare-queue-publisher.js';
 import type { CommerceNotificationPublisher } from './infra/commerce-notification-publisher.js';
+import { CommercetoolsClient } from './infra/commercetools-client.js';
 import { createApp } from './server/app.js';
 import { logger } from './shared/logger.js';
 
 async function main(): Promise<void> {
   const config = loadAppConfig();
+  const ctpConfig = loadCtpConfig();
+  const commercetoolsClient = new CommercetoolsClient(ctpConfig);
   const publisher = createPublisher(config);
   const inspectionStore = config.devInspectionEnabled
     ? new InspectionStore(config.devInspectionMaxMessages)
@@ -22,7 +25,7 @@ async function main(): Promise<void> {
     devInspectionEnabled: config.devInspectionEnabled,
   });
 
-  const app = createApp({ config, publisher, logger, inspectionStore });
+  const app = createApp({ config, publisher, logger, inspectionStore, commercetoolsClient });
   const server = app.listen(config.port, () => {
     logger.info('event proxy listening', { port: config.port });
   });

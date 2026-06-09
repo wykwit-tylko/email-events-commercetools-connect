@@ -44,13 +44,16 @@ export type AppConfig = {
   connectSubscriptionDestination?: string;
 };
 
-export type SubscriptionConfig = {
+export type CtpConfig = {
   ctpApiUrl: string;
   ctpAuthUrl: string;
   ctpProjectKey: string;
   ctpClientId: string;
   ctpClientSecret: string;
   ctpScope: string;
+};
+
+export type SubscriptionConfig = CtpConfig & {
   subscriptionKey: string;
   messageResourceTypes: string[];
   deliveryFormat: DeliveryFormat;
@@ -90,9 +93,7 @@ export function loadAppConfig(env: Env = process.env): AppConfig {
   };
 }
 
-export function loadSubscriptionConfig(
-  env: Env = process.env,
-): SubscriptionConfig {
+export function loadCtpConfig(env: Env = process.env): CtpConfig {
   return {
     ctpApiUrl: env.CTP_API_URL || apiUrlFromRegion(requireEnv(env, 'CTP_REGION')),
     ctpAuthUrl: env.CTP_AUTH_URL || authUrlFromRegion(requireEnv(env, 'CTP_REGION')),
@@ -100,6 +101,14 @@ export function loadSubscriptionConfig(
     ctpClientId: requireEnv(env, 'CTP_CLIENT_ID'),
     ctpClientSecret: requireEnv(env, 'CTP_CLIENT_SECRET'),
     ctpScope: requireEnv(env, 'CTP_SCOPE'),
+  };
+}
+
+export function loadSubscriptionConfig(
+  env: Env = process.env,
+): SubscriptionConfig {
+  return {
+    ...loadCtpConfig(env),
     subscriptionKey: env.CT_SUBSCRIPTION_KEY || defaultSubscriptionKey,
     messageResourceTypes: parseMessageResourceTypes(env.CT_MESSAGE_RESOURCE_TYPES),
     deliveryFormat: 'Platform',

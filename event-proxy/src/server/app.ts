@@ -11,6 +11,9 @@ import {
 import type { AppConfig } from '../config/env.js';
 import type { InspectionStore } from '../dev-inspection/inspection-store.js';
 import type { CommerceNotificationPublisher } from '../infra/commerce-notification-publisher.js';
+import { CommercetoolsClient } from '../infra/commercetools-client.js';
+import { defaultEnrichers } from '../enrichment/registry.js';
+import { enrichCommerceNotification } from '../enrichment/pipeline.js';
 import { errorFields, type Logger } from '../shared/logger.js';
 import { TimeoutError, withTimeout } from '../shared/timeout.js';
 
@@ -19,6 +22,7 @@ export function createApp(options: {
   publisher: CommerceNotificationPublisher;
   logger: Logger;
   inspectionStore?: InspectionStore;
+  commercetoolsClient?: CommercetoolsClient;
 }): Express {
   const app = express();
 
@@ -77,6 +81,25 @@ export function createApp(options: {
         return;
       }
 
+      const enrichmentResult = await enrichCommerceNotification(
+        queuePayload,
+        options.commercetoolsClient,
+        defaultEnrichers,
+      );
+
+      if (enrichmentResult.kind === 'skipped') {
+        options.logger.info('commerce notification skipped: enrichment failed', {
+          messageType: queuePayload.type,
+          reason: enrichmentResult.reason,
+          requestBytes: rawBody.length,
+          durationMs: Date.now() - startedAt,
+        });
+        response.status(200).send();
+        return;
+      }
+
+      const enrichedPayload = enrichmentResult.payload;
+
       if (!options.config.dryRunForwarding && !options.publisher.isReady()) {
         response.status(503).send('Publisher is not ready');
         return;
@@ -84,7 +107,7 @@ export function createApp(options: {
 
       if (!options.config.dryRunForwarding) {
         await withTimeout(
-          options.publisher.publish(queuePayload, {
+          options.publisher.publish(enrichedPayload, {
             contentType: commerceNotification.contentType,
           }),
           'Commerce Notification forwarding',
@@ -97,7 +120,7 @@ export function createApp(options: {
         requestBytes: rawBody.length,
         publishedBytes: commerceNotification.body.length,
         dryRun: options.config.dryRunForwarding,
-        body: queuePayload,
+        body: enrichedPayload,
       });
 
       options.logger.info('commerce notification forwarded', {
@@ -155,3 +178,5 @@ function matchesMessageTypeFilter(
 
   return typeof payload.type === 'string' && messageTypes.includes(payload.type);
 }
+
+

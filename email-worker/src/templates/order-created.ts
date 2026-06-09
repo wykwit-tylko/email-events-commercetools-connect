@@ -9,7 +9,7 @@ export type RenderedEmail = {
 export function renderOrderCreatedEmail(
   notification: PlatformCommerceNotification,
 ): RenderedEmail {
-  const orderNumber = notification.order?.orderNumber || notification.id || 'your order';
+  const orderNumber = notification.order?.orderNumber || notification.order?.id || 'your order';
   const subject = `Order ${orderNumber} confirmed`;
 
   return {

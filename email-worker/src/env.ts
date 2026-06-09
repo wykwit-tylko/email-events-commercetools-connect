@@ -21,6 +21,7 @@ export type EnqueuedCommerceNotification = {
   id?: string;
   type?: string;
   order?: {
+    id?: string;
     customerEmail?: string;
     orderNumber?: string;
     totalPrice?: {

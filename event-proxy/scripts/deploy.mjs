@@ -397,42 +397,37 @@ function verifyConnectorSupportsProject(projectKey) {
     return;
   }
 
-  // Extract privateProjects list — the CLI may format this as a single-line
-  // array, a multi-line array, or a YAML-style list. We collect values from
-  // the privateProjects section until we hit the next top-level field.
-  const lines = output.split("\n");
-  let inPrivateProjects = false;
-  const supportedProjects = [];
+  // Extract privateProjects list. The CLI formats connectors as a single
+  // comma-separated line where field names act as delimiters.
+  // We find everything between "privateProjects:" and the next known field.
+  const privateProjectsIdx = output.indexOf("privateProjects:");
+  let supportedProjects = [];
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+  if (privateProjectsIdx !== -1) {
+    const start = privateProjectsIdx + "privateProjects:".length;
+    const nextFieldNames = [
+      "integrationTypes:", "supportedRegions:", "hasChanges:",
+      "alreadyListed:", "status:", "publishingReport:", "isPreviewable:",
+      "previewableReport:", "private:", "documentationUrl:", "apiClient:",
+      "globalConfiguration:", "configurations:", "repository:", "creator:",
+      "key:", "name:", "description:", "id:", "version:",
+    ];
 
-    if (trimmed.startsWith("privateProjects:")) {
-      inPrivateProjects = true;
-      // Capture inline array values if present on the same line
-      const inlineMatch = trimmed.match(/privateProjects:\s*\[?([^\]]*)\]?/);
-      if (inlineMatch && inlineMatch[1].trim()) {
-        const items = inlineMatch[1]
-          .split(",")
-          .map((p) => p.trim().replace(/['"]/g, ""))
-          .filter(Boolean);
-        supportedProjects.push(...items);
+    let end = output.length;
+    for (const field of nextFieldNames) {
+      const idx = output.indexOf(field, start);
+      if (idx !== -1 && idx < end) {
+        end = idx;
       }
-      continue;
     }
 
-    if (!inPrivateProjects) continue;
-
-    // Stop when we hit the next top-level field (non-indented, non-empty)
-    if (trimmed.length > 0 && !line.startsWith(" ") && !line.startsWith("\t")) {
-      break;
-    }
-
-    // Collect list items: "- value", "value,", or "'value'"
-    const listItemMatch = trimmed.match(/^-?\s*['"]?([^,'"\]]+)['"]?/);
-    if (listItemMatch) {
-      supportedProjects.push(listItemMatch[1].trim());
-    }
+    const rawValues = output.slice(start, end).trim();
+    supportedProjects = rawValues
+      .replace(/^\[/, "")
+      .replace(/\]$/, "")
+      .split(",")
+      .map((p) => p.trim().replace(/['"\[\]]/g, ""))
+      .filter(Boolean);
   }
 
   if (supportedProjects.includes(projectKey)) {

@@ -7,9 +7,13 @@ import { createSilentLogger, FakePublisher } from '../test/test-utils.js';
 
 const baseConfig: AppConfig = {
   port: 8080,
-  cloudflareAccountId: 'account-id',
-  cloudflareQueueId: 'queue-id',
-  cloudflareApiToken: 'token',
+  publisherConfig: {
+    type: 'cloudflare-queue',
+    accountId: 'account-id',
+    queueId: 'queue-id',
+    apiToken: 'token',
+  },
+  messageTypes: [],
   maxBodyBytes: 1024,
   forwardingTimeoutMs: 50,
   dryRunForwarding: false,
@@ -76,6 +80,71 @@ describe('event proxy app', () => {
       notificationType: 'Message',
       type: 'OrderCreated',
     });
+  });
+
+  it('publishes Commerce Notifications matching the message type filter', async () => {
+    const publisher = new FakePublisher();
+    const app = createApp({
+      config: { ...baseConfig, messageTypes: ['OrderCreated'] },
+      publisher,
+      logger: createSilentLogger(),
+    });
+
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"notificationType":"Message","type":"OrderCreated"}')
+      .expect(200);
+
+    expect(publisher.published).toHaveLength(1);
+    expect(publisher.published[0]?.payload).toEqual({
+      notificationType: 'Message',
+      type: 'OrderCreated',
+    });
+  });
+
+  it('skips Commerce Notifications outside the message type filter', async () => {
+    const publisher = new FakePublisher();
+    const logger = createSilentLogger();
+    const app = createApp({
+      config: { ...baseConfig, messageTypes: ['OrderCreated'] },
+      publisher,
+      logger,
+    });
+
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"notificationType":"Message","type":"CustomerCreated"}')
+      .expect(200);
+
+    expect(publisher.published).toHaveLength(0);
+    expect(logger.entries).toContainEqual({
+      level: 'info',
+      message: 'commerce notification skipped by message type filter',
+      fields: expect.objectContaining({
+        messageType: 'CustomerCreated',
+        allowedMessageTypes: ['OrderCreated'],
+      }),
+    });
+  });
+
+  it('does not require a ready publisher when message type filtering skips the Commerce Notification', async () => {
+    const publisher = new FakePublisher();
+    publisher.ready = false;
+    const app = createApp({
+      config: { ...baseConfig, messageTypes: ['OrderCreated'] },
+      publisher,
+      logger: createSilentLogger(),
+    });
+
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"notificationType":"Message","type":"CustomerCreated"}')
+      .expect(200);
+
+    expect(publisher.published).toHaveLength(0);
   });
 
   it('returns 413 when the request body exceeds the configured limit', async () => {

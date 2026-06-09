@@ -1,29 +1,55 @@
 import { describe, expect, it } from 'vitest';
 import { loadAppConfig, loadSubscriptionConfig } from './env.js';
 
+const publisherConfig = JSON.stringify({
+  type: 'cloudflare-queue',
+  accountId: 'account-id',
+  queueId: 'queue-id',
+  apiToken: 'token',
+});
+
 describe('config', () => {
-  it('requires Cloudflare API token for app config', () => {
+  it('requires outbound publisher config for app config', () => {
     expect(() =>
-      loadAppConfig({
-        CLOUDFLARE_ACCOUNT_ID: 'account-id',
-        CLOUDFLARE_QUEUE_ID: 'queue-id',
-      }),
-    ).toThrow('CLOUDFLARE_API_TOKEN is required');
+      loadAppConfig({}),
+    ).toThrow('OUTBOUND_PUBLISHER_CONFIG is required');
   });
 
   it('loads app defaults', () => {
     const config = loadAppConfig({
-      CLOUDFLARE_ACCOUNT_ID: 'account-id',
-      CLOUDFLARE_QUEUE_ID: 'queue-id',
-      CLOUDFLARE_API_TOKEN: 'token',
+      OUTBOUND_PUBLISHER_CONFIG: publisherConfig,
     });
 
     expect(config.port).toBe(8080);
+    expect(config.publisherConfig).toEqual({
+      type: 'cloudflare-queue',
+      accountId: 'account-id',
+      queueId: 'queue-id',
+      apiToken: 'token',
+    });
+    expect(config.messageTypes).toEqual([]);
     expect(config.maxBodyBytes).toBe(90_000);
     expect(config.forwardingTimeoutMs).toBe(2_000);
     expect(config.dryRunForwarding).toBe(false);
     expect(config.devInspectionEnabled).toBe(false);
     expect(config.devInspectionMaxMessages).toBe(100);
+  });
+
+  it('loads message type filters with de-duplication', () => {
+    const config = loadAppConfig({
+      OUTBOUND_PUBLISHER_CONFIG: publisherConfig,
+      CT_MESSAGE_TYPES: 'OrderCreated, CustomerCreated, OrderCreated',
+    });
+
+    expect(config.messageTypes).toEqual(['OrderCreated', 'CustomerCreated']);
+  });
+
+  it('rejects unsupported publisher config types', () => {
+    expect(() =>
+      loadAppConfig({
+        OUTBOUND_PUBLISHER_CONFIG: JSON.stringify({ type: 'sns' }),
+      }),
+    ).toThrow('OUTBOUND_PUBLISHER_CONFIG type must be cloudflare-queue');
   });
 
   it('loads subscription config with resource type de-duplication', () => {

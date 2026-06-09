@@ -1,30 +1,25 @@
-import { loadAppConfig } from './config/env.js';
+import { loadAppConfig, type AppConfig } from './config/env.js';
 import { InspectionStore } from './dev-inspection/inspection-store.js';
 import { CloudflareQueuePublisher } from './infra/cloudflare-queue-publisher.js';
+import type { CommerceNotificationPublisher } from './infra/commerce-notification-publisher.js';
 import { createApp } from './server/app.js';
 import { logger } from './shared/logger.js';
 
 async function main(): Promise<void> {
   const config = loadAppConfig();
-  const publisher = new CloudflareQueuePublisher({
-    accountId: config.cloudflareAccountId,
-    queueId: config.cloudflareQueueId,
-    apiToken: config.cloudflareApiToken,
-    timeoutMs: config.forwardingTimeoutMs,
-  });
+  const publisher = createPublisher(config);
   const inspectionStore = config.devInspectionEnabled
     ? new InspectionStore(config.devInspectionMaxMessages)
     : undefined;
 
   logger.info('event proxy starting', {
     port: config.port,
-    cloudflareAccountId: config.cloudflareAccountId,
-    cloudflareQueueId: config.cloudflareQueueId,
+    publisherType: config.publisherConfig.type,
+    messageTypes: config.messageTypes,
     maxBodyBytes: config.maxBodyBytes,
     forwardingTimeoutMs: config.forwardingTimeoutMs,
     dryRunForwarding: config.dryRunForwarding,
     devInspectionEnabled: config.devInspectionEnabled,
-    cloudflareApiToken: '[redacted]',
   });
 
   const app = createApp({ config, publisher, logger, inspectionStore });
@@ -44,6 +39,20 @@ async function main(): Promise<void> {
   process.once('SIGTERM', () => {
     void shutdown().then(() => process.exit(0));
   });
+}
+
+function createPublisher(config: AppConfig): CommerceNotificationPublisher {
+  const publisherConfig = config.publisherConfig;
+
+  switch (publisherConfig.type) {
+    case 'cloudflare-queue':
+      return new CloudflareQueuePublisher({
+        accountId: publisherConfig.accountId,
+        queueId: publisherConfig.queueId,
+        apiToken: publisherConfig.apiToken,
+        timeoutMs: config.forwardingTimeoutMs,
+      });
+  }
 }
 
 main().catch((error: unknown) => {

@@ -7,8 +7,9 @@ The proxy does not decide email intent. It does not choose recipients, templates
 ## Behavior
 
 - Receives Commerce Notifications through Connect-managed event delivery at `POST /event-proxy`.
-- Publishes the Commerce Notification body directly to Cloudflare Queue using the HTTP Push API.
-- Parses the Commerce Notification as JSON at the Queue boundary so the Worker can filter by fields like `type`.
+- Publishes the Commerce Notification body through the configured outbound publisher adapter.
+- Parses the Commerce Notification as JSON at the publisher seam so the proxy can optionally filter by fields like `type`.
+- Can filter forwarded Commerce Notifications with `CT_MESSAGE_TYPES` while leaving email intent to the Worker.
 - Returns `200` only after forwarding succeeds, unless dry-run mode is enabled.
 - Returns non-2xx on forwarding failure or timeout so Connect can retry.
 - Does not normalize, deduplicate, or decide email intent.
@@ -20,7 +21,7 @@ Connect event delivery can wrap the Commerce Notification in a transport envelop
 - Google Cloud Pub/Sub: decodes `message.data` from base64.
 - AWS SNS: reads `Message`.
 
-The inner Commerce Notification is parsed as JSON and published to Cloudflare Queue as a JSON message.
+The inner Commerce Notification is parsed as JSON and published through the configured publisher as a JSON message.
 
 ## Configuration
 
@@ -48,9 +49,7 @@ See `event-proxy/.env.example` for all variables.
 
 Required runtime variables:
 
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_QUEUE_ID`
-- `CLOUDFLARE_API_TOKEN`
+- `OUTBOUND_PUBLISHER_CONFIG`
 
 Common optional runtime variables:
 
@@ -60,6 +59,7 @@ Common optional runtime variables:
 - `DEV_INSPECTION_ENABLED`, default `false`
 - `DEV_INSPECTION_MAX_MESSAGES`, default `100`
 - `PORT`, default `8080`
+- `CT_MESSAGE_TYPES`, default empty, meaning all Commerce Notification message types are forwarded
 
 commercetools deployment credentials:
 
@@ -89,7 +89,7 @@ Start the app in dry-run inspection mode:
 
 ```bash
 cd event-proxy
-CLOUDFLARE_ACCOUNT_ID=local CLOUDFLARE_QUEUE_ID=local CLOUDFLARE_API_TOKEN=local DRY_RUN_FORWARDING=true DEV_INSPECTION_ENABLED=true npm run dev
+OUTBOUND_PUBLISHER_CONFIG='{"type":"cloudflare-queue","accountId":"local","queueId":"local","apiToken":"local"}' DRY_RUN_FORWARDING=true DEV_INSPECTION_ENABLED=true npm run dev
 ```
 
 Post a sample Platform Commerce Notification:
@@ -157,7 +157,7 @@ MVP rules:
 - Message subscriptions only.
 - Resource-type filters only.
 - Platform delivery format by default.
-- No message `types` filters.
+- Optional proxy-level message type forwarding filter via `CT_MESSAGE_TYPES`.
 - Existing Subscriptions with Change/Event subscriptions are not overwritten.
 
 `connector:pre-undeploy` deletes only the Subscription matching `CT_SUBSCRIPTION_KEY`.

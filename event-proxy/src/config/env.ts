@@ -25,11 +25,17 @@ export const DEFAULT_MESSAGE_RESOURCE_TYPES = [
 
 export type DeliveryFormat = 'Platform' | 'CloudEvents';
 
+export type PublisherConfig = {
+  type: 'cloudflare-queue';
+  accountId: string;
+  queueId: string;
+  apiToken: string;
+};
+
 export type AppConfig = {
   port: number;
-  cloudflareAccountId: string;
-  cloudflareQueueId: string;
-  cloudflareApiToken: string;
+  publisherConfig: PublisherConfig;
+  messageTypes: string[];
   maxBodyBytes: number;
   forwardingTimeoutMs: number;
   dryRunForwarding: boolean;
@@ -61,9 +67,8 @@ const defaultSubscriptionKey = 'email-events-proxy';
 export function loadAppConfig(env: Env = process.env): AppConfig {
   return {
     port: parsePositiveInteger(env.PORT, 8080, 'PORT'),
-    cloudflareAccountId: requireEnv(env, 'CLOUDFLARE_ACCOUNT_ID'),
-    cloudflareQueueId: requireEnv(env, 'CLOUDFLARE_QUEUE_ID'),
-    cloudflareApiToken: requireEnv(env, 'CLOUDFLARE_API_TOKEN'),
+    publisherConfig: parsePublisherConfig(env.OUTBOUND_PUBLISHER_CONFIG),
+    messageTypes: parseMessageTypes(env.CT_MESSAGE_TYPES),
     maxBodyBytes: parsePositiveInteger(
       env.MAX_BODY_BYTES,
       90_000,
@@ -106,16 +111,71 @@ export function loadSubscriptionConfig(
 }
 
 export function parseMessageResourceTypes(value: string | undefined): string[] {
-  const resourceTypes = (value || DEFAULT_MESSAGE_RESOURCE_TYPES.join(','))
-    .split(',')
-    .map((resourceType) => resourceType.trim())
-    .filter(Boolean);
+  const resourceTypes = parseCommaSeparatedList(
+    value || DEFAULT_MESSAGE_RESOURCE_TYPES.join(','),
+  );
 
   if (resourceTypes.length === 0) {
     throw new Error('CT_MESSAGE_RESOURCE_TYPES must contain at least one value');
   }
 
-  return [...new Set(resourceTypes)];
+  return resourceTypes;
+}
+
+export function parseMessageTypes(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return parseCommaSeparatedList(value);
+}
+
+function parseCommaSeparatedList(value: string): string[] {
+  return [
+    ...new Set(
+      value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function parsePublisherConfig(value: string | undefined): PublisherConfig {
+  if (!value) {
+    throw new Error('OUTBOUND_PUBLISHER_CONFIG is required');
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value) as unknown;
+  } catch {
+    throw new Error('OUTBOUND_PUBLISHER_CONFIG must be valid JSON');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('OUTBOUND_PUBLISHER_CONFIG must be a JSON object');
+  }
+
+  const config = parsed as Record<string, unknown>;
+  if (config.type !== 'cloudflare-queue') {
+    throw new Error('OUTBOUND_PUBLISHER_CONFIG type must be cloudflare-queue');
+  }
+
+  return {
+    type: 'cloudflare-queue',
+    accountId: requireStringConfig(config, 'accountId'),
+    queueId: requireStringConfig(config, 'queueId'),
+    apiToken: requireStringConfig(config, 'apiToken'),
+  };
+}
+
+function requireStringConfig(config: Record<string, unknown>, key: string): string {
+  const value = config[key];
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`OUTBOUND_PUBLISHER_CONFIG.${key} is required`);
+  }
+  return value;
 }
 
 function parseDeliveryFormat(value: string | undefined): DeliveryFormat {

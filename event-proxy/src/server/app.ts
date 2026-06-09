@@ -46,11 +46,6 @@ export function createApp(options: {
     const startedAt = Date.now();
 
     try {
-      if (!options.config.dryRunForwarding && !options.publisher.isReady()) {
-        response.status(503).send('Publisher is not ready');
-        return;
-      }
-
       const rawBody = await readRawBody(request, options.config.maxBodyBytes);
       const commerceNotification = extractCommerceNotificationBody({
         rawBody,
@@ -61,6 +56,31 @@ export function createApp(options: {
       });
 
       const queuePayload = toQueueCommerceNotification(commerceNotification.body);
+
+      if (!matchesMessageTypeFilter(queuePayload, options.config.messageTypes)) {
+        options.inspectionStore?.add({
+          contentType: commerceNotification.contentType,
+          requestBytes: rawBody.length,
+          publishedBytes: commerceNotification.body.length,
+          dryRun: options.config.dryRunForwarding,
+          body: queuePayload,
+        });
+
+        options.logger.info('commerce notification skipped by message type filter', {
+          messageType: queuePayload.type,
+          allowedMessageTypes: options.config.messageTypes,
+          requestBytes: rawBody.length,
+          durationMs: Date.now() - startedAt,
+        });
+
+        response.status(200).send();
+        return;
+      }
+
+      if (!options.config.dryRunForwarding && !options.publisher.isReady()) {
+        response.status(503).send('Publisher is not ready');
+        return;
+      }
 
       if (!options.config.dryRunForwarding) {
         await withTimeout(
@@ -123,4 +143,15 @@ export function createApp(options: {
   });
 
   return app;
+}
+
+function matchesMessageTypeFilter(
+  payload: Record<string, unknown>,
+  messageTypes: string[],
+): boolean {
+  if (messageTypes.length === 0) {
+    return true;
+  }
+
+  return typeof payload.type === 'string' && messageTypes.includes(payload.type);
 }

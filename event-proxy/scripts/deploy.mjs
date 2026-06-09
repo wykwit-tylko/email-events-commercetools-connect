@@ -227,14 +227,17 @@ function buildConfigFlags(env, publisherConfig) {
 
   const standardConfigKeys = [
     "CT_SUBSCRIPTION_KEY",
-    "CT_MESSAGE_RESOURCE_TYPES",
-    "CT_MESSAGE_TYPES",
     "MAX_BODY_BYTES",
     "FORWARDING_TIMEOUT_MS",
     "DRY_RUN_FORWARDING",
     "DEV_INSPECTION_ENABLED",
     "DEV_INSPECTION_MAX_MESSAGES",
   ];
+
+  // Note: CT_MESSAGE_RESOURCE_TYPES and CT_MESSAGE_TYPES are omitted because
+  // they contain commas, and the commercetools CLI --configuration flag splits
+  // values on commas. Set these via the Connect console after deployment, or
+  // add them as defaults in connect.yaml.
 
   for (const key of standardConfigKeys) {
     const value = env[key];
@@ -721,6 +724,23 @@ async function main() {
   }
   if (newDeployment.deploymentId) {
     console.log(`Deployment id:  ${newDeployment.deploymentId}`);
+  }
+
+  // Warn about comma-containing configs that could not be passed via CLI
+  const commaConfigs = [];
+  if (env.CT_MESSAGE_TYPES) {
+    commaConfigs.push(`CT_MESSAGE_TYPES=${env.CT_MESSAGE_TYPES}`);
+  }
+  if (env.CT_MESSAGE_RESOURCE_TYPES) {
+    commaConfigs.push(`CT_MESSAGE_RESOURCE_TYPES=${env.CT_MESSAGE_RESOURCE_TYPES}`);
+  }
+  if (commaConfigs.length > 0) {
+    console.log(`\n⚠️  Note: The following configuration values contain commas and could not be passed automatically via the commercetools CLI.`);
+    console.log(`   Please set them manually in the Connect console after deployment:\n`);
+    for (const cfg of commaConfigs) {
+      console.log(`     ${cfg}`);
+    }
+    console.log();
   }
 }
 

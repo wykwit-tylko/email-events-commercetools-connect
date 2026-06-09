@@ -364,36 +364,25 @@ function getDeploymentConnectorKey(deploymentId) {
   return null;
 }
 
-function findDeploymentsForConnector(connectorKey, maxRetries = 5) {
-  for (let i = 0; i < maxRetries; i++) {
-    const deployments = listDeployments();
-    const matching = [];
+function findDeploymentsForConnector(connectorKey) {
+  const deployments = listDeployments();
+  const matching = [];
 
-    for (const dep of deployments) {
-      const depConnectorKey = getDeploymentConnectorKey(dep.id);
-      if (depConnectorKey === connectorKey) {
-        const output = runSilent(`commercetools connect deployment describe --id ${dep.id}`);
-        const statusMatch = output?.match(/status:\s*['"']?(\w+)['"']?/i);
-        const keyMatch = output?.match(/key:\s*['"']?([\w-]+)['"']?/i);
-        matching.push({
-          id: dep.id,
-          key: keyMatch ? keyMatch[1] : null,
-          status: statusMatch ? statusMatch[1] : "unknown",
-        });
-      }
-    }
-
-    if (matching.length > 0) {
-      return matching;
-    }
-
-    if (i < maxRetries - 1) {
-      console.log(`No deployments for connector '${connectorKey}' found yet, retrying in ${POLL_INTERVAL_SECONDS}s...`);
-      sleepSync(POLL_INTERVAL_SECONDS);
+  for (const dep of deployments) {
+    const depConnectorKey = getDeploymentConnectorKey(dep.id);
+    if (depConnectorKey === connectorKey) {
+      const output = runSilent(`commercetools connect deployment describe --id ${dep.id}`);
+      const statusMatch = output?.match(/status:\s*['"']?(\w+)['"']?/i);
+      const keyMatch = output?.match(/key:\s*['"']?([\w-]+)['"']?/i);
+      matching.push({
+        id: dep.id,
+        key: keyMatch ? keyMatch[1] : null,
+        status: statusMatch ? statusMatch[1] : "unknown",
+      });
     }
   }
 
-  return [];
+  return matching;
 }
 
 function extractDeploymentIdFromOutput(stdout) {

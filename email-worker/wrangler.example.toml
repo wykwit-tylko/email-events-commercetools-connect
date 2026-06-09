@@ -3,19 +3,30 @@ main = "src/index.ts"
 compatibility_date = "2026-06-09"
 
 [vars]
-EMAIL_SENDING_ENABLED = "false"
-FROM_EMAIL = "sender@your-domain.localhost"
+# Enable or disable email sending
+EMAIL_SENDING_ENABLED = "true"
+
+# Sender address for all outbound emails
+FROM_EMAIL = "your-sender@example.com"
+
+# KV deduplication entry TTL in seconds (30 days)
 DEDUPE_TTL_SECONDS = "2592000"
 
+# Storefront URL used in email links (e.g. order details, password reset)
+STORE_URL = "https://your-store.example.com"
+
 [[queues.consumers]]
-queue = "commerce-notifications-email-dev"
+# Queue that carries Commerce Notifications from the proxy
+queue = "your-queue-name"
 max_batch_size = 10
 max_batch_timeout = 5
 
 [[kv_namespaces]]
+# KV namespace for deduplication (sent:${notification.id})
 binding = "EMAIL_DEDUPE"
-id = "<YOUR_KV_NAMESPACE_ID>"
+id = "your-kv-namespace-id"
 
 [[send_email]]
+# Cloudflare Email Service binding
 name = "EMAIL"
 remote = true

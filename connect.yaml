@@ -1,0 +1,55 @@
+deployAs:
+  - name: event-proxy
+    applicationType: event
+    endpoint: /event-proxy
+    scripts:
+      postDeploy: cd event-proxy && npm install && npm run build && npm run connector:post-deploy
+      preUndeploy: cd event-proxy && npm install && npm run build && npm run connector:pre-undeploy
+    configuration:
+      standardConfiguration:
+        - key: CTP_REGION
+          description: commercetools Composable Commerce API region
+          required: true
+        - key: CTP_PROJECT_KEY
+          description: commercetools Composable Commerce project key
+          required: true
+        - key: CT_SUBSCRIPTION_KEY
+          description: Key of the commercetools Subscription managed by this Connector
+          required: false
+          default: email-events-proxy
+        - key: CT_MESSAGE_RESOURCE_TYPES
+          description: Comma-separated list of Message resource types to subscribe to
+          required: false
+          default: approval-flow,approval-rule,associate-role,business-unit,category,customer,customer-email-token,customer-group,customer-password-token,inventory-entry,order,payment,product,product-selection,product-tailoring,quote,quote-request,review,shopping-list,staged-quote,standalone-price,store
+        - key: CT_DELIVERY_FORMAT
+          description: commercetools Subscription delivery format, either Platform or CloudEvents
+          required: false
+          default: Platform
+        - key: NATS_URL
+          description: NATS server URL
+          required: true
+        - key: NATS_SUBJECT
+          description: NATS subject to publish Email Events to
+          required: false
+          default: commerce-notifications.email
+        - key: MAX_BODY_BYTES
+          description: Maximum accepted Commerce Notification request body size in bytes
+          required: false
+          default: "1048576"
+        - key: NATS_PUBLISH_TIMEOUT_MS
+          description: Timeout for publishing a Commerce Notification to NATS
+          required: false
+          default: "2000"
+      securedConfiguration:
+        - key: CTP_CLIENT_ID
+          description: commercetools API client ID for deployment scripts
+          required: true
+        - key: CTP_CLIENT_SECRET
+          description: commercetools API client secret for deployment scripts
+          required: true
+        - key: CTP_SCOPE
+          description: commercetools API client scope for deployment scripts
+          required: true
+        - key: NATS_AUTH_TOKEN
+          description: NATS authentication token
+          required: true

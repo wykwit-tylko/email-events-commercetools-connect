@@ -1,0 +1,9 @@
+.connect/
+.env
+coverage/
+dist/
+event-proxy/.env
+event-proxy/coverage/
+event-proxy/dist/
+event-proxy/node_modules/
+node_modules/

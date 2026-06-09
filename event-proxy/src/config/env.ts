@@ -67,11 +67,31 @@ type Env = Record<string, string | undefined>;
 
 const defaultSubscriptionKey = 'email-events-proxy';
 
+/**
+ * Decode a value if it was base64-encoded by the deploy script to avoid
+ * comma-splitting issues in the commercetools CLI.
+ * Values prefixed with `b64:` are decoded; all others pass through unchanged.
+ */
+function maybeBase64Decode(value: string | undefined): string | undefined {
+  if (!value || !value.startsWith('b64:')) {
+    return value;
+  }
+
+  const encoded = value.slice(4);
+  try {
+    return Buffer.from(encoded, 'base64').toString('utf8');
+  } catch {
+    return value;
+  }
+}
+
 export function loadAppConfig(env: Env = process.env): AppConfig {
   return {
     port: parsePositiveInteger(env.PORT, 8080, 'PORT'),
-    publisherConfig: parsePublisherConfig(env.OUTBOUND_PUBLISHER_CONFIG),
-    messageTypes: parseMessageTypes(env.CT_MESSAGE_TYPES),
+    publisherConfig: parsePublisherConfig(
+      maybeBase64Decode(env.OUTBOUND_PUBLISHER_CONFIG),
+    ),
+    messageTypes: parseMessageTypes(maybeBase64Decode(env.CT_MESSAGE_TYPES)),
     maxBodyBytes: parsePositiveInteger(
       env.MAX_BODY_BYTES,
       90_000,
@@ -128,7 +148,9 @@ export function loadSubscriptionConfig(
   return {
     ...ctpConfig,
     subscriptionKey: env.CT_SUBSCRIPTION_KEY || defaultSubscriptionKey,
-    messageResourceTypes: parseMessageResourceTypes(env.CT_MESSAGE_RESOURCE_TYPES),
+    messageResourceTypes: parseMessageResourceTypes(
+      maybeBase64Decode(env.CT_MESSAGE_RESOURCE_TYPES),
+    ),
     deliveryFormat: 'Platform',
     connectSubscriptionDestination: env.CONNECT_SUBSCRIPTION_DESTINATION,
     connectGcpProjectId: env.CONNECT_GCP_PROJECT_ID,

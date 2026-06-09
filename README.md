@@ -148,6 +148,9 @@ The deploy script:
 5. Attempts an in-place deployment update; falls back to create-new-then-delete-old if needed
 6. Polls until the deployment reaches a terminal state
 
+**How comma-containing configs work:**
+The commercetools CLI `--configuration` flag splits values on commas. To pass comma-containing values like `CT_MESSAGE_TYPES` and `OUTBOUND_PUBLISHER_CONFIG` (JSON) through the CLI, the deploy script transparently **base64-encodes** them with a `b64:` prefix. The event-proxy app detects and decodes them at startup. No manual action required.
+
 Required `.env` variables:
 - `CTP_CLIENT_ID`, `CTP_CLIENT_SECRET`, `CTP_PROJECT_KEY`, `CTP_REGION` (or `CTP_AUTH_URL`)
 - Either `OUTBOUND_PUBLISHER_CONFIG` as JSON, or `CF_ACCOUNT_ID` + `CF_QUEUE_ID` + `CF_QUEUE_API_TOKEN`

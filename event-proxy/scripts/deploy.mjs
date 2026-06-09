@@ -210,6 +210,11 @@ function formatDuration(ms) {
   return `${sec}s`;
 }
 
+function b64(value) {
+  const encoded = Buffer.from(value, "utf8").toString("base64");
+  return `b64:${encoded}`;
+}
+
 // ─── Publisher Config Auto-Construction ────────────────────────────────────────
 
 function buildPublisherConfig(env) {
@@ -269,19 +274,25 @@ function buildConfigFlags(env, publisherConfig) {
     "DEV_INSPECTION_MAX_MESSAGES",
   ];
 
-  // Note: The following configs are omitted because they contain commas,
-  // and the commercetools CLI --configuration flag splits values on commas:
-  //   - CT_MESSAGE_RESOURCE_TYPES
-  //   - CT_MESSAGE_TYPES
-  //   - OUTBOUND_PUBLISHER_CONFIG (JSON contains commas)
-  // Set these via the Connect console after deployment, or add them as
-  // defaults in connect.yaml.
-
   for (const key of standardConfigKeys) {
     const value = env[key];
     if (value && value.trim().length > 0) {
       flags.push(`--configuration '${prefix}.${key}=${value}'`);
     }
+  }
+
+  // Values that contain commas or JSON are base64-encoded so the
+  // commercetools CLI does not split them. The app decodes them at runtime.
+  if (env.CT_MESSAGE_TYPES) {
+    flags.push(`--configuration '${prefix}.CT_MESSAGE_TYPES=${b64(env.CT_MESSAGE_TYPES)}'`);
+  }
+
+  if (env.CT_MESSAGE_RESOURCE_TYPES) {
+    flags.push(`--configuration '${prefix}.CT_MESSAGE_RESOURCE_TYPES=${b64(env.CT_MESSAGE_RESOURCE_TYPES)}'`);
+  }
+
+  if (publisherConfig) {
+    flags.push(`--configuration '${prefix}.OUTBOUND_PUBLISHER_CONFIG=${b64(JSON.stringify(publisherConfig))}'`);
   }
 
   return flags;
@@ -810,25 +821,8 @@ async function main() {
     console.log(`Deployment id:  ${newDeployment.deploymentId}`);
   }
 
-  // Warn about configs that could not be passed via CLI
-  const manualConfigs = [];
-  if (env.CT_MESSAGE_TYPES) {
-    manualConfigs.push(`CT_MESSAGE_TYPES=${env.CT_MESSAGE_TYPES}`);
-  }
-  if (env.CT_MESSAGE_RESOURCE_TYPES) {
-    manualConfigs.push(`CT_MESSAGE_RESOURCE_TYPES=${env.CT_MESSAGE_RESOURCE_TYPES}`);
-  }
-  if (env.OUTBOUND_PUBLISHER_CONFIG || publisherConfig) {
-    manualConfigs.push(`OUTBOUND_PUBLISHER_CONFIG=(set from CF_* vars or .env)`);
-  }
-  if (manualConfigs.length > 0) {
-    console.log(`\n⚠️  Note: The following configuration values could not be passed automatically via the commercetools CLI.`);
-    console.log(`   Please set them manually in the Connect console after deployment:\n`);
-    for (const cfg of manualConfigs) {
-      console.log(`     ${cfg}`);
-    }
-    console.log();
-  }
+  // Note: comma-containing configs are automatically base64-encoded
+  // by the deploy script and decoded by the app at runtime.
 }
 
 main().catch((err) => {

@@ -128,6 +128,42 @@ Run the Worker locally:
 EMAIL_SENDING_ENABLED=false npm run dev
 ```
 
+## Deployment
+
+### Event Proxy (commercetools Connect)
+
+1. Build and push the connector:
+   ```bash
+   cd event-proxy
+   npm run build
+   ```
+2. Deploy through the commercetools Connect console or CLI using `connect.yaml`.
+3. The `connector:post-deploy` hook automatically creates the commercetools Subscription.
+4. Verify the subscription key matches `CT_SUBSCRIPTION_KEY`.
+
+Required production variables for the proxy:
+- `OUTBOUND_PUBLISHER_CONFIG`
+- `CTP_MESSAGE_TYPES` (e.g. `OrderCreated,CustomerEmailTokenCreated,CustomerPasswordTokenCreated`)
+
+### Email Worker (Cloudflare)
+
+1. Deploy the Worker and its KV namespace:
+   ```bash
+   cd email-worker
+   npm run deploy
+   ```
+2. Bindings (`wrangler.toml`) must include:
+   - `EMAIL` — Cloudflare Email Service binding
+   - `EMAIL_DEDUPE` — KV namespace for deduplication
+   - `FROM_EMAIL` — sender address
+   - `STORE_URL` — storefront URL for links (e.g. `https://shelfmarket.tylko.dev`)
+
+### Deployment Order
+
+1. Deploy the **Email Worker** first so the Cloudflare Queue exists.
+2. Deploy the **Event Proxy** with `OUTBOUND_PUBLISHER_CONFIG` pointing to the Worker queue.
+3. The proxy's `postDeploy` hook creates the commercetools Subscription.
+
 ## Scripts
 
 ```bash

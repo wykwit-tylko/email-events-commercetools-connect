@@ -11,7 +11,8 @@ flowchart LR
   CT[commercetools Project] --> SUB[commercetools Subscription]
   SUB --> CONNECT[Connect managed event delivery]
   CONNECT --> PROXY[Event Proxy]
-  PROXY --> QUEUE[Cloudflare Queue HTTP Push API]
+  PROXY --> PUB[Configured CommerceNotificationPublisher]
+  PUB --> QUEUE[Cloudflare Queue HTTP Push API]
   QUEUE --> WORKER[Cloudflare Worker]
   WORKER --> EMAIL[Cloudflare Email Service]
 ```
@@ -45,15 +46,17 @@ Recommended `email-worker` structure:
 
 ```text
 email-worker/src/
-├── index.ts                 # queue consumer entrypoint
+├── index.ts                         # queue consumer entrypoint
+├── queue/
+│   └── handler.ts                   # batch loop and explicit message-type dispatch
 ├── notifications/
-│   └── platform-message.ts  # Platform Commerce Notification parsing/types
-├── templates/
-│   └── order-created.ts     # renderOrderCreatedEmail
+│   └── order-created/
+│       ├── handler.ts               # type guard and OrderCreated workflow
+│       └── template.ts              # renderOrderCreatedEmail
 ├── dedupe/
-│   └── kv-dedupe-store.ts   # sent:${notification.id}
-└── email/
-    └── cloudflare-email.ts  # env.EMAIL.send wrapper
+│   └── kv-dedupe-store.ts           # sent:${notification.id}
+└── stats/
+    └── counters.ts                  # operational counters
 ```
 
 ## Recommendation
@@ -66,7 +69,7 @@ Why:
 - Workers can send email directly through the Cloudflare Email Service `EMAIL` binding.
 - No bridge service is needed.
 - Queue retry and batching stay inside Cloudflare.
-- The Event Proxy remains dumb: it receives Commerce Notifications and forwards them.
+- The Event Proxy remains a pass-through: it receives Commerce Notifications and forwards the configured subset.
 
 ## Event Proxy Responsibility
 
@@ -76,7 +79,8 @@ It should:
 
 - Receive Commerce Notifications from Connect-managed event delivery.
 - Unwrap Connect transport envelopes if needed.
-- Parse the Commerce Notification as JSON at the Queue boundary and publish it directly to Cloudflare Queue using the HTTP Push API.
+- Parse the Commerce Notification as JSON at the publisher seam and publish it through the configured `CommerceNotificationPublisher` adapter.
+- Apply an optional message-type allowlist before publishing to reduce downstream queue noise.
 - Return success only after queue publish succeeds.
 - In development, optionally store a bounded in-memory inspection log.
 - In development, optionally run in dry-run mode without publishing to Cloudflare Queue.
@@ -90,6 +94,8 @@ It should not:
 - Deduplicate email sends.
 - Normalize Commerce Notifications into email commands.
 
+Message-type filtering is traffic control, not email intent. The Event Proxy can decide whether a Commerce Notification is forwarded, but the Worker still decides what an Email Event means for email workflows.
+
 ## Development Visibility And Cost Control
 
 Development should support broad Commerce Notification discovery without creating unnecessary Cloudflare Queue or email traffic.
@@ -98,6 +104,7 @@ Recommended development mode:
 
 ```text
 CT_MESSAGE_RESOURCE_TYPES=approval-flow,approval-rule,associate-role,business-unit,category,customer,customer-email-token,customer-group,customer-password-token,inventory-entry,order,payment,product,product-selection,product-tailoring,quote,quote-request,review,shopping-list,staged-quote,standalone-price,store
+CT_MESSAGE_TYPES=
 DEV_INSPECTION_ENABLED=true
 DEV_INSPECTION_MAX_MESSAGES=100
 DRY_RUN_FORWARDING=true
@@ -155,7 +162,7 @@ Bill-safety controls:
 - Keep the Worker email sender disabled until explicitly enabled.
 - Keep the in-memory inspection log capped by `DEV_INSPECTION_MAX_MESSAGES`.
 - Narrow `CT_MESSAGE_RESOURCE_TYPES` later only when the team has learned which resource types matter.
-- Add message `types` filters later when useful, but not during initial discovery.
+- Leave `CT_MESSAGE_TYPES` empty during broad discovery, then set it in staging or production to an allowlist such as `OrderCreated` to avoid publishing irrelevant Commerce Notifications.
 - Configure Cloudflare Queue retry and dead-letter behavior before real email sending.
 - Add a daily email send cap in the Worker before sending production emails.
 - Keep `MAX_BODY_BYTES` below the Cloudflare Queue 128 KB message limit. The Event Proxy defaults to `90000` because Commerce Notifications are base64-encoded inside a JSON Queue message.
@@ -165,6 +172,9 @@ Connect configuration note:
 - `connect.yaml` uses `inheritAs.apiClient.scopes` with `manage_subscriptions` so Connect generates the commercetools API credentials used by deployment scripts.
 - This removes the need to configure `CTP_PROJECT_KEY`, `CTP_CLIENT_ID`, `CTP_CLIENT_SECRET`, and `CTP_SCOPE` manually during deployment.
 - Subscription delivery format is fixed to Platform because the Cloudflare Worker consumes Platform Commerce Notification JSON directly.
+- Publisher-specific credentials should live in one secured JSON environment variable, `OUTBOUND_PUBLISHER_CONFIG`, rather than one Connect configuration key per provider credential.
+- `OUTBOUND_PUBLISHER_CONFIG` selects exactly one publisher adapter at a time. The initial value uses `{ "type": "cloudflare-queue", "accountId": "...", "queueId": "...", "apiToken": "..." }`.
+- Migrate `connect.yaml` and `event-proxy` config parsing together so deployment config and runtime config do not drift.
 
 Do not use sampling as a primary cost-control mechanism. Sampling can hide important Commerce Notification shapes during discovery and makes debugging less deterministic.
 
@@ -176,7 +186,8 @@ It should:
 
 - Consume Commerce Notifications from Cloudflare Queue.
 - Parse Platform-format Commerce Notifications.
-- Filter message types relevant to email workflows.
+- Dispatch supported message types to per-notification-type handlers.
+- Keep type guards as a safety net and acknowledge ignored Commerce Notifications.
 - Decide recipient, template, localization, and suppression behavior.
 - Deduplicate sends.
 - Send email through Cloudflare Email Service.
@@ -214,30 +225,21 @@ await env.EMAIL.send({
 ## Minimal Worker Shape
 
 ```ts
+import { handleOrderCreated } from "./notifications/order-created/handler";
+
 export default {
   async queue(batch, env) {
     for (const message of batch.messages) {
       const notification = message.body;
 
-      if (notification.notificationType !== "Message") {
-        message.ack();
-        continue;
+      switch (notification?.type) {
+        case "OrderCreated":
+          await handleOrderCreated(notification, message, env);
+          break;
+
+        default:
+          message.ack();
       }
-
-      if (notification.type !== "OrderCreated") {
-        message.ack();
-        continue;
-      }
-
-      await env.EMAIL.send({
-        to: notification.order.customerEmail,
-        from: "orders@yourdomain.com",
-        subject: `Order ${notification.order.orderNumber} confirmed`,
-        html: "<h1>Thanks for your order</h1>",
-        text: "Thanks for your order",
-      });
-
-      message.ack();
     }
   },
 };
@@ -245,18 +247,20 @@ export default {
 
 ## Migration Options
 
-### Selected Option: Direct Cloudflare Queue HTTP Producer
+### Selected Option: Publisher Interface With Cloudflare Queue Adapter
 
 Best if Cloudflare Worker is definitely the email runtime.
 
 Changes:
 
-- Replace the Event Proxy publisher with a Cloudflare Queue HTTP publisher.
-- Add Cloudflare account ID, queue ID, and API token as Connect configuration.
+- Keep outbound delivery behind a `CommerceNotificationPublisher` interface.
+- Implement the first adapter as a Cloudflare Queue HTTP publisher.
+- Configure the selected adapter through `OUTBOUND_PUBLISHER_CONFIG`.
+- Add optional `CT_MESSAGE_TYPES` proxy filtering before publishing.
 - Forward parsed Commerce Notification JSON directly to Cloudflare Queue.
 - Add dry-run forwarding mode.
 - Add development-only bounded inspection endpoints.
-- Update tests to assert Email Worker enqueue publishing.
+- Update tests to assert publisher calls and filtering behavior.
 
 Pros:
 
@@ -266,8 +270,8 @@ Pros:
 
 Cons:
 
-- Event Proxy becomes coupled to Cloudflare Queues.
-- Less vendor-neutral than a broker-neutral boundary.
+- First adapter is Cloudflare-specific.
+- `OUTBOUND_PUBLISHER_CONFIG` is less self-documenting in Connect UI than separate provider-specific fields.
 
 ## Implementation Plan
 
@@ -279,7 +283,7 @@ Tasks:
 
 - Create a generic `CommerceNotificationPublisher` interface.
 - Move outbound delivery behind a `CommerceNotificationPublisher` interface.
-- Implement the Email Worker enqueue publisher.
+- Select a publisher adapter from runtime configuration.
 - Keep tests focused on publisher calls rather than concrete queue internals.
 
 Acceptance checks:
@@ -331,11 +335,10 @@ Goal: publish raw Commerce Notifications through the Cloudflare Queue HTTP Push 
 Tasks:
 
 - Add Event Proxy configuration:
-  - `CLOUDFLARE_ACCOUNT_ID`
-  - `CLOUDFLARE_QUEUE_ID`
-  - `CLOUDFLARE_API_TOKEN`
-- Implement `CloudflareQueuePublisherAdapter` using the Cloudflare Queue HTTP Push API.
+  - `OUTBOUND_PUBLISHER_CONFIG`
+- Implement `CloudflareQueuePublisher` using the Cloudflare Queue HTTP Push API.
 - Publish Platform Commerce Notification JSON as the Cloudflare Queue message body so the Worker can filter by `notificationType` and `type` directly.
+- Add optional `CT_MESSAGE_TYPES` allowlist filtering in the Event Proxy.
 - Return non-2xx from the proxy when enqueue fails.
 
 Acceptance checks:
@@ -393,6 +396,10 @@ These decisions are locked for the implementation pass unless a new hard constra
 | Email send retries | Do not retry email sending in the Worker MVP. Log failures and acknowledge the queue message. |
 | Previous NATS transport | Removed in favor of direct Cloudflare Queue HTTP publishing. |
 | Worker module location | Implement the Cloudflare Worker in root-level `email-worker/`. |
+| Proxy message-type filtering | Add optional `CT_MESSAGE_TYPES` as a comma-separated allowlist. Empty means no proxy-level message-type filtering. |
+| Publisher configuration | Use one secured JSON environment variable, `OUTBOUND_PUBLISHER_CONFIG`, for provider-specific publisher credentials. |
+| Publisher fan-out | Support one publisher adapter at a time. Do not design fan-out for the MVP. |
+| Worker notification dispatch | Use explicit per-type dispatch with handler directories such as `notifications/order-created/`. |
 
 ## References
 

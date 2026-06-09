@@ -1,0 +1,3 @@
+# Proxy filters Commerce Notifications before publishing
+
+The Event Proxy will support optional message-type filtering through `CT_MESSAGE_TYPES` before publishing to the outbound queue, while the Worker keeps its own type guards and ignores Commerce Notifications it does not handle. Publisher-specific credentials will be configured through one secured JSON environment variable, `OUTBOUND_PUBLISHER_CONFIG`, so adding a new publisher adapter does not require adding provider-specific secrets to `connect.yaml`. We chose this because filtering upstream reduces Cloudflare queue noise and processing cost, while the single publisher config keeps the publisher seam provider-neutral without designing fan-out before it is needed.

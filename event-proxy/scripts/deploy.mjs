@@ -687,19 +687,18 @@ async function main() {
     console.log(`Step 2 completed in ${formatDuration(Date.now() - stepStart)}\n`);
   }
 
-  function authenticate(force = false) {
-    const command = [
-      "commercetools auth login",
-      "--client-credentials",
-      `--client-id ${env.CTP_CLIENT_ID}`,
-      `--client-secret ${env.CTP_CLIENT_SECRET}`,
-      `--region ${resolvedRegion}`,
-      `--project-key ${env.CTP_PROJECT_KEY}`,
-    ];
-    if (force) {
-      command.push("--force");
-    }
-    run(command.join(" "));
+  function authenticate() {
+    run(
+      [
+        "commercetools auth login",
+        "--client-credentials",
+        `--client-id ${env.CTP_CLIENT_ID}`,
+        `--client-secret ${env.CTP_CLIENT_SECRET}`,
+        `--region ${resolvedRegion}`,
+        `--project-key ${env.CTP_PROJECT_KEY}`,
+        `--scope manage_project`,
+      ].join(" "),
+    );
   }
 
   // ── Step 3: Authenticate with commercetools ─────────────────────────────────
@@ -726,7 +725,7 @@ async function main() {
 
   function reauthenticate() {
     console.log("--- Re-authenticating with commercetools ---");
-    authenticate(true);
+    authenticate();
   }
 
   // ── Step 4: Stage or create connector ─────────────────────────────────────

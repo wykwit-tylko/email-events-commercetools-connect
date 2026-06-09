@@ -269,7 +269,6 @@ function buildConfigFlags(env, publisherConfig) {
 
   const standardConfigKeys = [
     "CT_SUBSCRIPTION_KEY",
-    "CTP_PROJECT_KEY",
     "MAX_BODY_BYTES",
     "FORWARDING_TIMEOUT_MS",
     "DRY_RUN_FORWARDING",

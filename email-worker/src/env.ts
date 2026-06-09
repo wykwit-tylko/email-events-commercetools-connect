@@ -4,6 +4,7 @@ export type Env = {
   EMAIL_SENDING_ENABLED: string;
   FROM_EMAIL: string;
   DEDUPE_TTL_SECONDS: string;
+  STORE_URL: string;
 };
 
 export type EmailBinding = {

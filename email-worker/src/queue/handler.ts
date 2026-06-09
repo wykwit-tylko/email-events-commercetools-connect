@@ -1,4 +1,6 @@
 import { type CommerceNotification, type Env, type QueuePayload } from '../env';
+import { handleCustomerEmailVerification } from '../notifications/customer-email-verification/handler';
+import { handleCustomerPasswordReset } from '../notifications/customer-password-reset/handler';
 import { handleOrderCreated } from '../notifications/order-created/handler';
 import { logger } from '../shared/logger';
 import { incrementStats } from '../stats/counters';
@@ -30,6 +32,14 @@ async function handleQueueMessage(
   switch (notification?.type) {
     case 'OrderCreated':
       await handleOrderCreated(message, env);
+      return;
+
+    case 'CustomerEmailTokenCreated':
+      await handleCustomerEmailVerification(message, env);
+      return;
+
+    case 'CustomerPasswordTokenCreated':
+      await handleCustomerPasswordReset(message, env);
       return;
 
     default:

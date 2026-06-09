@@ -96,6 +96,78 @@ describe('handleQueue', () => {
       errors: 1,
     });
   });
+
+  it('sends email for CustomerEmailTokenCreated notifications', async () => {
+    const env = createTestEnv({ emailSendingEnabled: true });
+    const message = createMessage({
+      notificationType: 'Message',
+      id: 'email-token-id',
+      type: 'CustomerEmailTokenCreated',
+      customerId: 'customer-id',
+      customerEmail: 'newuser@example.com',
+      expiresAt: '2026-06-10T12:00:00.000Z',
+      value: 'verify-token-123',
+    });
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(1);
+    expect(env.sentEmails[0]?.to).toBe('newuser@example.com');
+    expect(env.sentEmails[0]?.subject).toBe('Verify your email address');
+    expect(env.sentEmails[0]?.html).toContain('verify-email?token=verify-token-123');
+    await expect(env.EMAIL_DEDUPE.get('sent:email-token-id')).resolves.not.toBeNull();
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      emailsSent: 1,
+    });
+  });
+
+  it('sends email for CustomerPasswordTokenCreated notifications', async () => {
+    const env = createTestEnv({ emailSendingEnabled: true });
+    const message = createMessage({
+      notificationType: 'Message',
+      id: 'password-token-id',
+      type: 'CustomerPasswordTokenCreated',
+      customerId: 'customer-id',
+      customerEmail: 'user@example.com',
+      expiresAt: '2026-06-10T12:00:00.000Z',
+      value: 'reset-token-456',
+    });
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(1);
+    expect(env.sentEmails[0]?.to).toBe('user@example.com');
+    expect(env.sentEmails[0]?.subject).toBe('Reset your password');
+    expect(env.sentEmails[0]?.html).toContain('reset-password?token=reset-token-456');
+    await expect(env.EMAIL_DEDUPE.get('sent:password-token-id')).resolves.not.toBeNull();
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      emailsSent: 1,
+    });
+  });
+
+  it('ignores CustomerEmailTokenCreated with missing tokenValue', async () => {
+    const env = createTestEnv({ emailSendingEnabled: true });
+    const message = createMessage({
+      notificationType: 'Message',
+      id: 'email-token-id',
+      type: 'CustomerEmailTokenCreated',
+      customerId: 'customer-id',
+      customerEmail: 'newuser@example.com',
+    });
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(0);
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      ignored: 1,
+    });
+  });
 });
 
 type TestEnv = Env & {
@@ -141,6 +213,7 @@ function createTestEnv(options: {
     EMAIL_SENDING_ENABLED: String(options.emailSendingEnabled),
     FROM_EMAIL: 'orders@example.com',
     DEDUPE_TTL_SECONDS: '2592000',
+    STORE_URL: 'https://shelfmarket.tylko.dev',
     sentEmails,
   } as TestEnv;
 }

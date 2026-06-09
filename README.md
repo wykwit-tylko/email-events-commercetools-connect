@@ -132,24 +132,29 @@ EMAIL_SENDING_ENABLED=false npm run dev
 
 ### Event Proxy (commercetools Connect)
 
-One-command deployment from `event-proxy/` (requires commercetools CLI and `.env` with credentials):
+The deploy script automates staging, publishing, and configuration generation. Deployment creation itself may require additional Connect permissions.
 
 ```bash
 cd event-proxy
-npm run deploy        # full pipeline: stage → publish → deploy
+npm run deploy        # stage → publish → generate config flags
 npm run deploy -- --dry-run   # preview config without side effects
 ```
 
 The deploy script:
 1. Reads `.env` from the working directory
 2. Auto-constructs `OUTBOUND_PUBLISHER_CONFIG` from `CF_ACCOUNT_ID`, `CF_QUEUE_ID`, `CF_QUEUE_API_TOKEN` if the full JSON is not present
-3. Validates prerequisites (CLI installed, credentials present)
-4. Authenticates, stages the connector from the latest git tag, publishes, and deploys
-5. Attempts an in-place deployment update; falls back to create-new-then-delete-old if needed
-6. Polls until the deployment reaches a terminal state
+3. Validates prerequisites (commercetools CLI installed, credentials present)
+4. Authenticates and stages the connector from the latest git tag
+5. Publishes the staged connector
+6. Generates base64-encoded `--configuration` flags for all comma-containing values
 
 **How comma-containing configs work:**
-The commercetools CLI `--configuration` flag splits values on commas. To pass comma-containing values like `CT_MESSAGE_TYPES` and `OUTBOUND_PUBLISHER_CONFIG` (JSON) through the CLI, the deploy script transparently **base64-encodes** them with a `b64:` prefix. The event-proxy app detects and decodes them at startup. No manual action required.
+The commercetools CLI `--configuration` flag splits values on commas. The deploy script transparently **base64-encodes** them with a `b64:` prefix. The event-proxy app detects and decodes them at startup.
+
+**Known limitation:** The script stages and publishes the connector successfully, but `commercetools connect deployment create` may return "Access denied" depending on your API client's Connect permissions. If this happens:
+- Use the generated `--configuration` flags from the dry-run output
+- Create the deployment manually via the Merchant Center Connect UI
+- Or ensure your CLI API client has Connect deployment management scopes
 
 Required `.env` variables:
 - `CTP_CLIENT_ID`, `CTP_CLIENT_SECRET`, `CTP_PROJECT_KEY`, `CTP_REGION` (or `CTP_AUTH_URL`)

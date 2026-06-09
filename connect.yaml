@@ -47,3 +47,4 @@ inheritAs:
   apiClient:
     scopes:
       - manage_subscriptions
+      - manage_customers

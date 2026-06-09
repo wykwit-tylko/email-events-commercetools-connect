@@ -10,13 +10,14 @@
  *   5. Reads the latest git tag.
  *   6. Updates (or creates) the ConnectorStaged with the new tag.
  *   7. Publishes the staged connector and waits for Published.
- *   8. Finds existing deployments for this connector key.
- *   9. Attempts an in-place update of the existing deployment.
- *   10. If no deployment exists or update fails, creates a new deployment.
- *   11. If a new deployment was created and an old one existed, waits for the new one
+ *   8. Verifies the connector supports the current project.
+ *   9. Finds existing deployments for this connector key.
+ *   10. Attempts an in-place update of the existing deployment.
+ *   11. If no deployment exists or update fails, creates a new deployment.
+ *   12. If a new deployment was created and an old one existed, waits for the new one
  *       to reach Deployed, then deletes the old one.
- *   12. Polls deployment status until terminal.
- *   13. Reports total elapsed time.
+ *   13. Polls deployment status until terminal.
+ *   14. Reports total elapsed time.
  *
  * Usage:
  *   node scripts/deploy.mjs
@@ -44,6 +45,7 @@ const STEPS = [
   "auth",
   "stage",
   "publish",
+  "verify",
   "find",
   "deploy",
   "poll",
@@ -377,6 +379,51 @@ function pollConnectorPublished() {
   return false;
 }
 
+// ─── Connector Project Support Verification ────────────────────────────────
+
+function verifyConnectorSupportsProject(projectKey) {
+  const output = runSilent(`commercetools connect connectorstaged describe --key ${CONNECTOR_KEY}`);
+  if (!output) {
+    console.log("Could not fetch connector details; skipping project support check.");
+    return;
+  }
+
+  // Check if the connector is private (restricted to specific projects)
+  const privateMatch = output.match(/private:\s*(true|false)/i);
+  const isPrivate = privateMatch ? privateMatch[1].toLowerCase() === "true" : false;
+
+  if (!isPrivate) {
+    console.log(`Connector '${CONNECTOR_KEY}' is public (supports all projects).`);
+    return;
+  }
+
+  // Extract privateProjects list
+  const privateProjectsMatch = output.match(/privateProjects:\s*\[([^\]]*)\]/);
+  const supportedProjects = privateProjectsMatch
+    ? privateProjectsMatch[1]
+        .split(",")
+        .map((p) => p.trim().replace(/['"]/g, ""))
+        .filter(Boolean)
+    : [];
+
+  if (supportedProjects.includes(projectKey)) {
+    console.log(`Connector '${CONNECTOR_KEY}' supports project '${projectKey}'.`);
+    return;
+  }
+
+  console.error(`\nError: Connector '${CONNECTOR_KEY}' is restricted to specific projects.`);
+  console.error(`Current project '${projectKey}' is NOT in the supported projects list.`);
+  console.error(`Supported projects: ${supportedProjects.length > 0 ? supportedProjects.join(", ") : "(none listed)"}`);
+  console.error("\nHow to fix:");
+  console.error("  1. Go to Merchant Center → Connect → Manage connectors");
+  console.error(`  2. Find the connector '${CONNECTOR_KEY}'`);
+  console.error("  3. Edit the connector settings");
+  console.error("  4. In 'Supported projects', select 'All projects of this organization'");
+  console.error(`     OR add '${projectKey}' to the specific projects list`);
+  console.error("  5. Save and re-run the deployment script");
+  process.exit(1);
+}
+
 // ─── Deployment Management ───────────────────────────────────────────────────
 
 function listDeployments() {
@@ -692,11 +739,10 @@ async function main() {
       [
         "commercetools auth login",
         "--client-credentials",
-        `--client-id ${env.CTP_CLIENT_ID}`,
-        `--client-secret ${env.CTP_CLIENT_SECRET}`,
-        `--region ${resolvedRegion}`,
-        `--project-key ${env.CTP_PROJECT_KEY}`,
-        `--scope manage_project`,
+        `--client-id '${env.CTP_CLIENT_ID}'`,
+        `--client-secret '${env.CTP_CLIENT_SECRET}'`,
+        `--region '${resolvedRegion}'`,
+        `--project-key '${env.CTP_PROJECT_KEY}'`,
       ].join(" "),
     );
   }
@@ -744,12 +790,20 @@ async function main() {
     console.log(`Step 5 completed in ${formatDuration(Date.now() - stepStart)}\n`);
   }
 
-  // ── Step 6: Find existing deployments ─────────────────────────────────────
+  // ── Step 6: Verify connector project support ────────────────────────────────
+  if (shouldRun("find", from) || shouldRun("deploy", from)) {
+    const stepStart = Date.now();
+    console.log(`--- Step 6: Verify connector supports project '${env.CTP_PROJECT_KEY}' ---`);
+    verifyConnectorSupportsProject(env.CTP_PROJECT_KEY);
+    console.log(`Step 6 completed in ${formatDuration(Date.now() - stepStart)}\n`);
+  }
+
+  // ── Step 7: Find existing deployments ─────────────────────────────────────
   let oldDeployments = [];
 
   if (shouldRun("find", from)) {
     const stepStart = Date.now();
-    console.log(`--- Step 6: Find existing deployments ---`);
+    console.log(`--- Step 7: Find existing deployments ---`);
     oldDeployments = findDeploymentsForConnector(CONNECTOR_KEY);
 
     if (oldDeployments.length === 0) {
@@ -760,10 +814,10 @@ async function main() {
         console.log(`  - ${dep.key || dep.id} (${dep.status})`);
       }
     }
-    console.log(`Step 6 completed in ${formatDuration(Date.now() - stepStart)}\n`);
+    console.log(`Step 7 completed in ${formatDuration(Date.now() - stepStart)}\n`);
   }
 
-  // ── Step 7: Deploy (update in-place or create new) ─────────────────────────
+  // ── Step 8: Deploy (update in-place or create new) ─────────────────────────
   let newDeployment = null;
   let deploymentMethod = "unknown";
 
@@ -771,7 +825,7 @@ async function main() {
     const configFlags = buildConfigFlags(env, publisherConfig);
 
     const stepStart = Date.now();
-    console.log("--- Step 7: Deploy ---");
+    console.log("--- Step 8: Deploy ---");
 
     // Re-authenticate before deployment because the token may have expired
     // while waiting for connector publication in Step 5
@@ -804,15 +858,15 @@ async function main() {
       deploymentMethod = "create";
     }
 
-    console.log(`Step 7 completed in ${formatDuration(Date.now() - stepStart)}\n`);
+    console.log(`Step 8 completed in ${formatDuration(Date.now() - stepStart)}\n`);
   }
 
-  // ── Step 8: Poll deployment status ──────────────────────────────────────────
+  // ── Step 9: Poll deployment status ──────────────────────────────────────────
   let deployed = false;
 
   if (shouldRun("poll", from)) {
     const stepStart = Date.now();
-    console.log("--- Step 8: Poll deployment status ---");
+    console.log("--- Step 9: Poll deployment status ---");
 
     if (!newDeployment) {
       // When starting from poll, discover the deployment by connector key
@@ -840,13 +894,13 @@ async function main() {
       console.error("\nDeployment did not reach Deployed state. Aborting.");
       process.exit(1);
     }
-    console.log(`Step 8 completed in ${formatDuration(Date.now() - stepStart)}\n`);
+    console.log(`Step 9 completed in ${formatDuration(Date.now() - stepStart)}\n`);
   }
 
-  // ── Step 9: Clean up old deployments ────────────────────────────────────────
+  // ── Step 10: Clean up old deployments ────────────────────────────────────────
   if (shouldRun("cleanup", from)) {
     const stepStart = Date.now();
-    console.log("--- Step 9: Clean up old deployments ---");
+    console.log("--- Step 10: Clean up old deployments ---");
 
     if (!oldDeployments && deploymentMethod === "create") {
       // When starting from cleanup, we need to know old deployments
@@ -858,7 +912,7 @@ async function main() {
         const deleteFlag = dep.key ? `--key ${dep.key}` : `--id ${dep.id}`;
         deleteDeployment(deleteFlag);
       }
-      console.log(`Step 9 completed in ${formatDuration(Date.now() - stepStart)}\n`);
+      console.log(`Step 10 completed in ${formatDuration(Date.now() - stepStart)}\n`);
     } else {
       console.log("Skipped (update-in-place used or no previous deployment).");
       console.log();

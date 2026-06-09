@@ -1,25 +1,26 @@
 # Event Proxy
 
-A minimal commercetools Connect event application that forwards Commerce Notifications to NATS.
+A minimal commercetools Connect event application that forwards Commerce Notifications to Cloudflare Queue for an email Worker.
 
 The proxy does not decide email intent. It does not choose recipients, templates, suppression rules, or whether an email should be sent.
 
 ## Behavior
 
 - Receives Commerce Notifications through Connect-managed event delivery at `POST /event-proxy`.
-- Publishes the Commerce Notification body to one NATS subject.
-- Uses plain NATS pub/sub for the MVP.
-- Returns `200` only after NATS publish succeeds.
-- Returns non-2xx on NATS publish failure or timeout so Connect can retry.
-- Does not parse, normalize, deduplicate, or validate the Commerce Notification payload.
+- Publishes the Commerce Notification body directly to Cloudflare Queue using the HTTP Push API.
+- Parses the Commerce Notification as JSON at the Queue boundary so the Worker can filter by fields like `type`.
+- Returns `200` only after forwarding succeeds, unless dry-run mode is enabled.
+- Returns non-2xx on forwarding failure or timeout so Connect can retry.
+- Does not normalize, deduplicate, or decide email intent.
 - Does not log raw Commerce Notification payloads.
+- Can expose development-only in-memory inspection endpoints.
 
 Connect event delivery can wrap the Commerce Notification in a transport envelope. The app unwraps these outer envelopes before publishing:
 
 - Google Cloud Pub/Sub: decodes `message.data` from base64.
 - AWS SNS: reads `Message`.
 
-The inner Commerce Notification bytes are forwarded unchanged.
+The inner Commerce Notification is parsed as JSON and published to Cloudflare Queue as a JSON message.
 
 ## Configuration
 
@@ -36,33 +37,35 @@ See `event-proxy/.env.example` for all variables.
     ├── package.json
     └── src/
         ├── config/    # environment parsing and defaults
-        ├── infra/     # NATS and commercetools API integrations
+        ├── infra/     # email-worker and commercetools API integrations
         ├── scripts/   # local subscriber and Connect lifecycle scripts
         ├── server/    # HTTP event endpoint and raw body handling
         ├── shared/    # logging and small shared utilities
         ├── test/      # test fixtures and fakes
         └── index.ts   # application entrypoint
+└── email-worker/      # Cloudflare Worker for queueing and sending emails
 ```
 
 Required runtime variables:
 
-- `NATS_URL`
-- `NATS_AUTH_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_QUEUE_ID`
+- `CLOUDFLARE_API_TOKEN`
 
 Common optional runtime variables:
 
-- `NATS_SUBJECT`, default `commerce-notifications.email`
-- `MAX_BODY_BYTES`, default `1048576`
-- `NATS_PUBLISH_TIMEOUT_MS`, default `2000`
+- `MAX_BODY_BYTES`, default `90000`
+- `FORWARDING_TIMEOUT_MS`, default `2000`
+- `DRY_RUN_FORWARDING`, default `false`
+- `DEV_INSPECTION_ENABLED`, default `false`
+- `DEV_INSPECTION_MAX_MESSAGES`, default `100`
 - `PORT`, default `8080`
 
-Required deployment-script variables:
+commercetools deployment credentials:
 
-- `CTP_REGION`
-- `CTP_PROJECT_KEY`
-- `CTP_CLIENT_ID`
-- `CTP_CLIENT_SECRET`
-- `CTP_SCOPE`, recommended `manage_subscriptions:{projectKey}`
+- `connect.yaml` uses `inheritAs.apiClient.scopes` with `manage_subscriptions`.
+- Connect automatically provides `CTP_API_URL`, `CTP_AUTH_URL`, `CTP_PROJECT_KEY`, `CTP_CLIENT_ID`, `CTP_CLIENT_SECRET`, and `CTP_SCOPE` at runtime.
+- For local script testing outside Connect, provide either `CTP_API_URL` and `CTP_AUTH_URL`, or provide `CTP_REGION` so the app can derive them.
 
 Connect-provided event variables used by `postDeploy`:
 
@@ -73,6 +76,8 @@ Connect-provided event variables used by `postDeploy`:
 
 ## Local Development
 
+### Event Proxy Dry Run
+
 Install dependencies:
 
 ```bash
@@ -80,24 +85,11 @@ cd event-proxy
 npm install
 ```
 
-Start NATS locally with token auth:
-
-```bash
-docker run --rm -p 4222:4222 nats:2 -js --auth dev-token
-```
-
-Start the app:
+Start the app in dry-run inspection mode:
 
 ```bash
 cd event-proxy
-NATS_URL=nats://localhost:4222 NATS_AUTH_TOKEN=dev-token npm run dev
-```
-
-Subscribe to the outbound subject:
-
-```bash
-cd event-proxy
-NATS_URL=nats://localhost:4222 NATS_AUTH_TOKEN=dev-token npm run dev:subscribe
+CLOUDFLARE_ACCOUNT_ID=local CLOUDFLARE_QUEUE_ID=local CLOUDFLARE_API_TOKEN=local DRY_RUN_FORWARDING=true DEV_INSPECTION_ENABLED=true npm run dev
 ```
 
 Post a sample Platform Commerce Notification:
@@ -108,16 +100,52 @@ curl -X POST http://localhost:8080/event-proxy \
   -d '{"notificationType":"Message","projectKey":"demo","id":"message-id","version":1,"sequenceNumber":1,"resource":{"typeId":"order","id":"order-id"},"resourceVersion":1,"type":"OrderCreated","createdAt":"2026-06-09T12:00:00.000Z","lastModifiedAt":"2026-06-09T12:00:00.000Z"}'
 ```
 
+Inspect dry-run messages:
+
+```bash
+curl http://localhost:8080/event-proxy/dev/messages
+```
+
+### Email Worker
+
+Install Worker dependencies:
+
+```bash
+cd email-worker
+npm install
+```
+
+Run type checks and tests:
+
+```bash
+npm run build
+npm test
+```
+
+Run the Worker locally:
+
+```bash
+EMAIL_SENDING_ENABLED=false npm run dev
+```
+
 ## Scripts
 
 ```bash
 cd event-proxy
 npm run dev
-npm run dev:subscribe
 npm test
 npm run build
 npm run connector:post-deploy
 npm run connector:pre-undeploy
+```
+
+From `email-worker/`:
+
+```bash
+npm run dev
+npm test
+npm run build
+npm run deploy
 ```
 
 ## Subscription Management

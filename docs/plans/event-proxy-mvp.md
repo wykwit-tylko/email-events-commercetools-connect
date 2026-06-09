@@ -1,5 +1,7 @@
 # commercetools Event Proxy MVP Plan
 
+> Superseded: the implementation has moved from NATS to `email-worker` plus Cloudflare Queues. See `docs/plans/cloudflare-email-worker.md` for the current plan.
+
 ## Purpose
 
 Build a minimal commercetools Connect application that receives Commerce Notifications through Connect-managed event delivery and forwards them unchanged to NATS for a downstream email service.

@@ -1,0 +1,21 @@
+name = "email-worker"
+main = "src/index.ts"
+compatibility_date = "2026-06-09"
+
+[vars]
+EMAIL_SENDING_ENABLED = "false"
+FROM_EMAIL = "sender@your-domain.localhost"
+DEDUPE_TTL_SECONDS = "2592000"
+
+[[queues.consumers]]
+queue = "commerce-notifications-email-dev"
+max_batch_size = 10
+max_batch_timeout = 5
+
+[[kv_namespaces]]
+binding = "EMAIL_DEDUPE"
+id = "<YOUR_KV_NAMESPACE_ID>"
+
+[[send_email]]
+name = "EMAIL"
+remote = true

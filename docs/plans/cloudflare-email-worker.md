@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Explore replacing the NATS email-service consumer path with a Cloudflare-native email pipeline using Cloudflare Queues, Workers, and Cloudflare Email Service.
+Replace the previous NATS email-service consumer path with a Cloudflare-native email pipeline using Cloudflare Queues, Workers, and Cloudflare Email Service.
 
 ## Recommended Architecture
 
@@ -11,7 +11,7 @@ flowchart LR
   CT[commercetools Project] --> SUB[commercetools Subscription]
   SUB --> CONNECT[Connect managed event delivery]
   CONNECT --> PROXY[Event Proxy]
-  PROXY --> QUEUE[Cloudflare Queue]
+  PROXY --> QUEUE[Cloudflare Queue HTTP Push API]
   QUEUE --> WORKER[Cloudflare Worker]
   WORKER --> EMAIL[Cloudflare Email Service]
 ```
@@ -45,7 +45,7 @@ Recommended `email-worker` structure:
 
 ```text
 email-worker/src/
-├── index.ts                 # queue handler
+├── index.ts                 # queue consumer entrypoint
 ├── notifications/
 │   └── platform-message.ts  # Platform Commerce Notification parsing/types
 ├── templates/
@@ -58,13 +58,13 @@ email-worker/src/
 
 ## Recommendation
 
-If the real email service will be a Cloudflare Worker, prefer **Cloudflare Queues** over NATS for the outbound queue.
+Use **Cloudflare Queues** for the outbound queue when the real email service is a Cloudflare Worker.
 
 Why:
 
 - Cloudflare Workers consume Cloudflare Queues natively.
 - Workers can send email directly through the Cloudflare Email Service `EMAIL` binding.
-- No NATS-to-Worker bridge service is needed.
+- No bridge service is needed.
 - Queue retry and batching stay inside Cloudflare.
 - The Event Proxy remains dumb: it receives Commerce Notifications and forwards them.
 
@@ -76,7 +76,7 @@ It should:
 
 - Receive Commerce Notifications from Connect-managed event delivery.
 - Unwrap Connect transport envelopes if needed.
-- Forward raw Commerce Notification payloads to Cloudflare Queue.
+- Parse the Commerce Notification as JSON at the Queue boundary and publish it directly to Cloudflare Queue using the HTTP Push API.
 - Return success only after queue publish succeeds.
 - In development, optionally store a bounded in-memory inspection log.
 - In development, optionally run in dry-run mode without publishing to Cloudflare Queue.
@@ -158,6 +158,13 @@ Bill-safety controls:
 - Add message `types` filters later when useful, but not during initial discovery.
 - Configure Cloudflare Queue retry and dead-letter behavior before real email sending.
 - Add a daily email send cap in the Worker before sending production emails.
+- Keep `MAX_BODY_BYTES` below the Cloudflare Queue 128 KB message limit. The Event Proxy defaults to `90000` because Commerce Notifications are base64-encoded inside a JSON Queue message.
+
+Connect configuration note:
+
+- `connect.yaml` uses `inheritAs.apiClient.scopes` with `manage_subscriptions` so Connect generates the commercetools API credentials used by deployment scripts.
+- This removes the need to configure `CTP_PROJECT_KEY`, `CTP_CLIENT_ID`, `CTP_CLIENT_SECRET`, and `CTP_SCOPE` manually during deployment.
+- Subscription delivery format is fixed to Platform because the Cloudflare Worker consumes Platform Commerce Notification JSON directly.
 
 Do not use sampling as a primary cost-control mechanism. Sampling can hide important Commerce Notification shapes during discovery and makes debugging less deterministic.
 
@@ -238,18 +245,18 @@ export default {
 
 ## Migration Options
 
-### Option 1: Replace NATS with Cloudflare Queues
+### Selected Option: Direct Cloudflare Queue HTTP Producer
 
 Best if Cloudflare Worker is definitely the email runtime.
 
 Changes:
 
-- Replace the Event Proxy NATS publisher with a Cloudflare Queue publisher.
-- Add Cloudflare API credentials as secured Connect configuration.
-- Forward raw Commerce Notification payloads to the queue.
+- Replace the Event Proxy publisher with a Cloudflare Queue HTTP publisher.
+- Add Cloudflare account ID, queue ID, and API token as Connect configuration.
+- Forward parsed Commerce Notification JSON directly to Cloudflare Queue.
 - Add dry-run forwarding mode.
 - Add development-only bounded inspection endpoints.
-- Update tests from NATS publish assertions to Cloudflare Queue publish assertions.
+- Update tests to assert Email Worker enqueue publishing.
 
 Pros:
 
@@ -260,35 +267,7 @@ Pros:
 Cons:
 
 - Event Proxy becomes coupled to Cloudflare Queues.
-- Less vendor-neutral than NATS.
-
-### Option 2: Keep NATS and Add a Bridge
-
-Best if NATS should remain the central event boundary.
-
-Changes:
-
-- Keep Event Proxy unchanged.
-- Add a small NATS subscriber service.
-- Bridge service calls a Cloudflare Worker HTTP endpoint.
-- Worker sends email using Cloudflare Email Service.
-
-Pros:
-
-- Preserves current NATS architecture.
-- Keeps Cloudflare concerns out of Event Proxy.
-
-Cons:
-
-- Adds a new service to run and monitor.
-- More moving parts.
-- Worker is not consuming queue messages natively.
-
-## Recommended Follow-Up
-
-Choose **Option 1: Replace NATS with Cloudflare Queues** if this project commits to Cloudflare Workers as the email service runtime.
-
-Keep NATS only if there is a broader architectural reason to use NATS beyond this email workflow.
+- Less vendor-neutral than a broker-neutral boundary.
 
 ## Implementation Plan
 
@@ -299,14 +278,14 @@ Goal: make outbound delivery swappable without changing the Connect ingestion pa
 Tasks:
 
 - Create a generic `CommerceNotificationPublisher` interface.
-- Move current NATS implementation behind `NatsPublisherAdapter`.
-- Keep existing behavior and tests passing.
-- Add config `OUTBOUND_TRANSPORT=nats|cloudflare-queue` with default `nats` during transition.
+- Move outbound delivery behind a `CommerceNotificationPublisher` interface.
+- Implement the Email Worker enqueue publisher.
+- Keep tests focused on publisher calls rather than concrete queue internals.
 
 Acceptance checks:
 
-- Existing local NATS test flow still works.
-- Existing unit tests still pass.
+- Existing unit tests pass.
+- Event Proxy can be run in dry-run mode without an Email Worker.
 
 ### Phase 2: Add Dev Inspection Store
 
@@ -345,25 +324,24 @@ Acceptance checks:
 - HTTP response is `200` for accepted dry-run messages.
 - Inspection log still captures the message when enabled.
 
-### Phase 4: Add Cloudflare Queue Publisher
+### Phase 4: Add Direct Cloudflare Queue Publisher
 
-Goal: publish raw Commerce Notifications to Cloudflare Queue.
+Goal: publish raw Commerce Notifications through the Cloudflare Queue HTTP Push API.
 
 Tasks:
 
-- Add Cloudflare Queue configuration:
+- Add Event Proxy configuration:
   - `CLOUDFLARE_ACCOUNT_ID`
-  - `CLOUDFLARE_QUEUE_ID` or `CLOUDFLARE_QUEUE_NAME`
+  - `CLOUDFLARE_QUEUE_ID`
   - `CLOUDFLARE_API_TOKEN`
-- Implement `CloudflareQueuePublisherAdapter` using Cloudflare's queue API.
-- Preserve raw Commerce Notification payloads.
-- Return non-2xx from the proxy when Cloudflare Queue publish fails.
-- Keep NATS implementation until Cloudflare path is verified.
+- Implement `CloudflareQueuePublisherAdapter` using the Cloudflare Queue HTTP Push API.
+- Publish Platform Commerce Notification JSON as the Cloudflare Queue message body so the Worker can filter by `notificationType` and `type` directly.
+- Return non-2xx from the proxy when enqueue fails.
 
 Acceptance checks:
 
-- Unit tests verify Cloudflare Queue request body.
-- Cloudflare publish failure returns `503`.
+- Unit tests verify Cloudflare Queue HTTP request body.
+- Queue publish failure returns `503`.
 - Dry-run mode bypasses Cloudflare Queue publish.
 
 ### Phase 5: Add Worker Email Consumer Skeleton
@@ -413,7 +391,7 @@ These decisions are locked for the implementation pass unless a new hard constra
 | Deduplication state | Use Cloudflare KV for MVP with keys like `sent:${notification.id}` and a 30-day TTL. |
 | Template location | Keep MVP templates in Worker code, starting with `renderOrderCreatedEmail`. |
 | Email send retries | Do not retry email sending in the Worker MVP. Log failures and acknowledge the queue message. |
-| NATS after Cloudflare Queue validation | Clean cut: remove NATS once Cloudflare Queue forwarding works. |
+| Previous NATS transport | Removed in favor of direct Cloudflare Queue HTTP publishing. |
 | Worker module location | Implement the Cloudflare Worker in root-level `email-worker/`. |
 
 ## References

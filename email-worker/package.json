@@ -1,0 +1,22 @@
+{
+  "name": "email-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "typegen": "wrangler types"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260609.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.8",
+    "wrangler": "^4.50.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

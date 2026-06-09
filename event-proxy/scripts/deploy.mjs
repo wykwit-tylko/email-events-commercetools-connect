@@ -38,6 +38,47 @@ const DEPLOYMENT_TYPE = "sandbox";
 const POLL_INTERVAL_SECONDS = 20;
 const MAX_POLL_ATTEMPTS = 60; // 20 minutes
 
+const STEPS = [
+  "load",
+  "tag",
+  "auth",
+  "stage",
+  "publish",
+  "find",
+  "deploy",
+  "poll",
+  "cleanup",
+];
+
+function parseFromArg(args) {
+  const fromArg = args.find((a) => a.startsWith("--from="));
+  if (!fromArg) return null;
+
+  const raw = fromArg.slice("--from=".length).toLowerCase();
+
+  // Accept step names or 1-based numbers
+  const stepIndex = STEPS.indexOf(raw);
+  if (stepIndex !== -1) {
+    return { name: raw, index: stepIndex };
+  }
+
+  const num = parseInt(raw, 10);
+  if (!Number.isNaN(num) && num >= 1 && num <= STEPS.length) {
+    return { name: STEPS[num - 1], index: num - 1 };
+  }
+
+  console.error(`Error: Invalid --from value '${raw}'.`);
+  console.error(`  Use a step name: ${STEPS.join(", ")}`);
+  console.error(`  Or a step number: 1-${STEPS.length}`);
+  process.exit(1);
+}
+
+function shouldRun(step, from) {
+  if (!from) return true;
+  const stepIndex = STEPS.indexOf(step);
+  return stepIndex >= from.index;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function loadEnv(path = ".env") {
@@ -213,12 +254,6 @@ function buildPublisherConfig(env) {
   };
 }
 
-function formatPublisherConfigForCli(config) {
-  const json = JSON.stringify(config);
-  // Wrap in single quotes for shell safety
-  return `'${json}'`;
-}
-
 // ─── Config Flags Builder ────────────────────────────────────────────────────
 
 function buildConfigFlags(env, publisherConfig) {
@@ -234,20 +269,19 @@ function buildConfigFlags(env, publisherConfig) {
     "DEV_INSPECTION_MAX_MESSAGES",
   ];
 
-  // Note: CT_MESSAGE_RESOURCE_TYPES and CT_MESSAGE_TYPES are omitted because
-  // they contain commas, and the commercetools CLI --configuration flag splits
-  // values on commas. Set these via the Connect console after deployment, or
-  // add them as defaults in connect.yaml.
+  // Note: The following configs are omitted because they contain commas,
+  // and the commercetools CLI --configuration flag splits values on commas:
+  //   - CT_MESSAGE_RESOURCE_TYPES
+  //   - CT_MESSAGE_TYPES
+  //   - OUTBOUND_PUBLISHER_CONFIG (JSON contains commas)
+  // Set these via the Connect console after deployment, or add them as
+  // defaults in connect.yaml.
 
   for (const key of standardConfigKeys) {
     const value = env[key];
     if (value && value.trim().length > 0) {
       flags.push(`--configuration '${prefix}.${key}=${value}'`);
     }
-  }
-
-  if (publisherConfig) {
-    flags.push(`--configuration ${prefix}.OUTBOUND_PUBLISHER_CONFIG=${formatPublisherConfigForCli(publisherConfig)}`);
   }
 
   return flags;
@@ -555,23 +589,32 @@ function validatePrerequisites(env) {
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
+  const from = parseFromArg(args);
 
   const pipelineStart = Date.now();
 
   console.log("=== Event Proxy Connector Deployment ===\n");
+
+  if (from) {
+    console.log(`*** STARTING FROM STEP: ${from.name} (${from.index + 1}/${STEPS.length}) ***\n`);
+  }
 
   if (dryRun) {
     console.log("\n*** DRY RUN MODE ***");
     console.log("No changes will be made. Commands will be printed but not executed.\n");
   }
 
-  // 1. Load .env
+  // ── Step 1: Load and validate configuration ────────────────────────────────
+  let env;
+  let publisherConfig;
+  let resolvedRegion;
+
   const stepLoadStart = Date.now();
   console.log("--- Step 1: Load and validate configuration ---");
-  const env = loadEnv();
-  const publisherConfig = validatePrerequisites(env);
+  env = loadEnv();
+  publisherConfig = validatePrerequisites(env);
 
-  const resolvedRegion = env.CTP_REGION || extractRegion(env.CTP_AUTH_URL);
+  resolvedRegion = env.CTP_REGION || extractRegion(env.CTP_AUTH_URL);
   if (!resolvedRegion) {
     console.error(`Error: Could not extract region from CTP_AUTH_URL: ${env.CTP_AUTH_URL}`);
     process.exit(1);
@@ -592,152 +635,196 @@ async function main() {
     return;
   }
 
-  // 2. Latest git tag
-  const stepTagStart = Date.now();
-  console.log("--- Step 2: Determine release version ---");
-  const latestTag = getLatestGitTag();
-  console.log(`Latest git tag: ${latestTag}`);
-  console.log(`Step 2 completed in ${formatDuration(Date.now() - stepTagStart)}\n`);
+  // ── Step 2: Determine release version ───────────────────────────────────────
+  let latestTag = null;
 
-  // 3. Authenticate
-  const stepAuthStart = Date.now();
-  console.log("--- Step 3: Authenticate with commercetools ---");
-  run(
-    [
-      "commercetools auth login",
-      "--client-credentials",
-      `--client-id ${env.CTP_CLIENT_ID}`,
-      `--client-secret ${env.CTP_CLIENT_SECRET}`,
-      `--region ${resolvedRegion}`,
-      `--project-key ${env.CTP_PROJECT_KEY}`,
-    ].join(" ")
-  );
-  console.log(`Step 3 completed in ${formatDuration(Date.now() - stepAuthStart)}\n`);
-
-  // 4. Stage or create connector
-  const stepStageStart = Date.now();
-  console.log(`--- Step 4: Stage ConnectorStaged '${CONNECTOR_KEY}' ---`);
-  stageOrCreateConnector(latestTag);
-  console.log(`Step 4 completed in ${formatDuration(Date.now() - stepStageStart)}\n`);
-
-  // 5. Publish connector
-  const stepPublishStart = Date.now();
-  console.log(`--- Step 5: Publish ConnectorStaged '${CONNECTOR_KEY}' ---`);
-  publishConnector();
-  console.log(`Step 5 completed in ${formatDuration(Date.now() - stepPublishStart)}\n`);
-
-  // 6. Find existing deployments
-  const stepFindStart = Date.now();
-  console.log(`--- Step 6: Find existing deployments ---`);
-  const oldDeployments = findDeploymentsForConnector(CONNECTOR_KEY);
-
-  if (oldDeployments.length === 0) {
-    console.log("No existing deployments found.");
-  } else {
-    console.log(`Found ${oldDeployments.length} existing deployment(s):`);
-    for (const dep of oldDeployments) {
-      console.log(`  - ${dep.key || dep.id} (${dep.status})`);
-    }
+  if (shouldRun("tag", from)) {
+    const stepStart = Date.now();
+    console.log("--- Step 2: Determine release version ---");
+    latestTag = getLatestGitTag();
+    console.log(`Latest git tag: ${latestTag}`);
+    console.log(`Step 2 completed in ${formatDuration(Date.now() - stepStart)}\n`);
   }
-  console.log(`Step 6 completed in ${formatDuration(Date.now() - stepFindStart)}\n`);
 
-  // 7. Deploy (update in-place or create new)
-  const configFlags = buildConfigFlags(env, publisherConfig);
+  // ── Step 3: Authenticate with commercetools ─────────────────────────────────
+  if (shouldRun("auth", from)) {
+    const stepStart = Date.now();
+    console.log("--- Step 3: Authenticate with commercetools ---");
+    run(
+      [
+        "commercetools auth login",
+        "--client-credentials",
+        `--client-id ${env.CTP_CLIENT_ID}`,
+        `--client-secret ${env.CTP_CLIENT_SECRET}`,
+        `--region ${resolvedRegion}`,
+        `--project-key ${env.CTP_PROJECT_KEY}`,
+      ].join(" ")
+    );
+    console.log(`Step 3 completed in ${formatDuration(Date.now() - stepStart)}\n`);
+  }
+
+  // ── Step 4: Stage or create connector ─────────────────────────────────────
+  if (shouldRun("stage", from)) {
+    const stepStart = Date.now();
+    console.log(`--- Step 4: Stage ConnectorStaged '${CONNECTOR_KEY}' ---`);
+    stageOrCreateConnector(latestTag);
+    console.log(`Step 4 completed in ${formatDuration(Date.now() - stepStart)}\n`);
+  }
+
+  // ── Step 5: Publish connector ─────────────────────────────────────────────
+  if (shouldRun("publish", from)) {
+    const stepStart = Date.now();
+    console.log(`--- Step 5: Publish ConnectorStaged '${CONNECTOR_KEY}' ---`);
+    publishConnector();
+    console.log(`Step 5 completed in ${formatDuration(Date.now() - stepStart)}\n`);
+  }
+
+  // ── Step 6: Find existing deployments ─────────────────────────────────────
+  let oldDeployments = [];
+
+  if (shouldRun("find", from)) {
+    const stepStart = Date.now();
+    console.log(`--- Step 6: Find existing deployments ---`);
+    oldDeployments = findDeploymentsForConnector(CONNECTOR_KEY);
+
+    if (oldDeployments.length === 0) {
+      console.log("No existing deployments found.");
+    } else {
+      console.log(`Found ${oldDeployments.length} existing deployment(s):`);
+      for (const dep of oldDeployments) {
+        console.log(`  - ${dep.key || dep.id} (${dep.status})`);
+      }
+    }
+    console.log(`Step 6 completed in ${formatDuration(Date.now() - stepStart)}\n`);
+  }
+
+  // ── Step 7: Deploy (update in-place or create new) ─────────────────────────
   let newDeployment = null;
   let deploymentMethod = "unknown";
 
-  const stepDeployStart = Date.now();
-  console.log("--- Step 7: Deploy ---");
+  if (shouldRun("deploy", from)) {
+    const configFlags = buildConfigFlags(env, publisherConfig);
 
-  // Try update in-place first
-  if (oldDeployments.length > 0) {
-    const target = oldDeployments[0];
-    console.log(`\nAttempting in-place update of deployment ${target.key || target.id}...`);
-    const updateResult = updateDeployment(
-      target.key || target.id,
-      resolvedRegion,
-      configFlags,
-      !target.key, // use id if no key
-    );
+    const stepStart = Date.now();
+    console.log("--- Step 7: Deploy ---");
 
-    if (updateResult?.updated) {
-      console.log("In-place update succeeded.");
-      newDeployment = updateResult;
-      deploymentMethod = "update";
-    } else {
-      console.log("In-place update failed or not supported. Will create new deployment.");
+    // Try update in-place first
+    if (oldDeployments.length > 0) {
+      const target = oldDeployments[0];
+      console.log(`\nAttempting in-place update of deployment ${target.key || target.id}...`);
+      const updateResult = updateDeployment(
+        target.key || target.id,
+        resolvedRegion,
+        configFlags,
+        !target.key, // use id if no key
+      );
+
+      if (updateResult?.updated) {
+        console.log("In-place update succeeded.");
+        newDeployment = updateResult;
+        deploymentMethod = "update";
+      } else {
+        console.log("In-place update failed or not supported. Will create new deployment.");
+      }
     }
+
+    // Create new deployment if update failed or no existing deployment
+    if (!newDeployment) {
+      console.log("\nCreating new deployment...");
+      newDeployment = createDeployment(resolvedRegion, configFlags);
+      deploymentMethod = "create";
+    }
+
+    console.log(`Step 7 completed in ${formatDuration(Date.now() - stepStart)}\n`);
   }
 
-  // Create new deployment if update failed or no existing deployment
-  if (!newDeployment) {
-    console.log("\nCreating new deployment...");
-    newDeployment = createDeployment(resolvedRegion, configFlags);
-    deploymentMethod = "create";
-  }
-
-  console.log(`Step 7 completed in ${formatDuration(Date.now() - stepDeployStart)}\n`);
-
-  // 8. Poll deployment status
-  const stepPollStart = Date.now();
-  console.log("--- Step 8: Poll deployment status ---");
+  // ── Step 8: Poll deployment status ──────────────────────────────────────────
   let deployed = false;
 
-  if (newDeployment.deploymentKey) {
-    deployed = pollDeploymentStatus(newDeployment.deploymentKey, false);
-  } else if (newDeployment.deploymentId) {
-    deployed = pollDeploymentStatus(newDeployment.deploymentId, true);
-  } else {
-    console.log("No deployment key or ID found in output; skipping poll.");
-  }
+  if (shouldRun("poll", from)) {
+    const stepStart = Date.now();
+    console.log("--- Step 8: Poll deployment status ---");
 
-  if (!deployed) {
-    console.error("\nDeployment did not reach Deployed state. Aborting.");
-    process.exit(1);
-  }
-  console.log(`Step 8 completed in ${formatDuration(Date.now() - stepPollStart)}\n`);
-
-  // 9. Clean up old deployments if we created a new one
-  if (deploymentMethod === "create" && oldDeployments.length > 0) {
-    const stepCleanupStart = Date.now();
-    console.log("--- Step 9: Clean up old deployments ---");
-    for (const dep of oldDeployments) {
-      const deleteFlag = dep.key ? `--key ${dep.key}` : `--id ${dep.id}`;
-      deleteDeployment(deleteFlag);
+    if (!newDeployment) {
+      // When starting from poll, discover the deployment by connector key
+      console.log("Discovering deployment to poll...");
+      const currentDeployments = findDeploymentsForConnector(CONNECTOR_KEY);
+      if (currentDeployments.length === 0) {
+        console.error("Error: No deployment found for connector. Cannot poll.");
+        process.exit(1);
+      }
+      newDeployment = {
+        deploymentKey: currentDeployments[0].key,
+        deploymentId: currentDeployments[0].id,
+      };
     }
-    console.log(`Step 9 completed in ${formatDuration(Date.now() - stepCleanupStart)}\n`);
-  } else {
-    console.log("--- Step 9: Clean up old deployments ---");
-    console.log("Skipped (update-in-place used or no previous deployment).");
-    console.log();
+
+    if (newDeployment.deploymentKey) {
+      deployed = pollDeploymentStatus(newDeployment.deploymentKey, false);
+    } else if (newDeployment.deploymentId) {
+      deployed = pollDeploymentStatus(newDeployment.deploymentId, true);
+    } else {
+      console.log("No deployment key or ID found in output; skipping poll.");
+    }
+
+    if (!deployed) {
+      console.error("\nDeployment did not reach Deployed state. Aborting.");
+      process.exit(1);
+    }
+    console.log(`Step 8 completed in ${formatDuration(Date.now() - stepStart)}\n`);
   }
 
-  // 10. Report
+  // ── Step 9: Clean up old deployments ────────────────────────────────────────
+  if (shouldRun("cleanup", from)) {
+    const stepStart = Date.now();
+    console.log("--- Step 9: Clean up old deployments ---");
+
+    if (!oldDeployments && deploymentMethod === "create") {
+      // When starting from cleanup, we need to know old deployments
+      oldDeployments = findDeploymentsForConnector(CONNECTOR_KEY);
+    }
+
+    if (deploymentMethod === "create" && oldDeployments.length > 0) {
+      for (const dep of oldDeployments) {
+        const deleteFlag = dep.key ? `--key ${dep.key}` : `--id ${dep.id}`;
+        deleteDeployment(deleteFlag);
+      }
+      console.log(`Step 9 completed in ${formatDuration(Date.now() - stepStart)}\n`);
+    } else {
+      console.log("Skipped (update-in-place used or no previous deployment).");
+      console.log();
+    }
+  }
+
+  // ── Report ───────────────────────────────────────────────────────────────────
   const elapsedMs = Date.now() - pipelineStart;
   console.log(`=== Deployment completed in ${formatDuration(elapsedMs)} ===`);
   console.log(`\nConnector: ${CONNECTOR_KEY}`);
-  console.log(`Version:   ${latestTag}`);
+  console.log(`Version:   ${latestTag || "(skipped)"}`);
   console.log(`Region:    ${resolvedRegion}`);
   console.log(`Project:   ${env.CTP_PROJECT_KEY}`);
-  if (newDeployment.deploymentKey) {
+  if (newDeployment?.deploymentKey) {
     console.log(`Deployment key: ${newDeployment.deploymentKey}`);
   }
-  if (newDeployment.deploymentId) {
+  if (newDeployment?.deploymentId) {
     console.log(`Deployment id:  ${newDeployment.deploymentId}`);
   }
 
-  // Warn about comma-containing configs that could not be passed via CLI
-  const commaConfigs = [];
+  // Warn about configs that could not be passed via CLI
+  const manualConfigs = [];
   if (env.CT_MESSAGE_TYPES) {
-    commaConfigs.push(`CT_MESSAGE_TYPES=${env.CT_MESSAGE_TYPES}`);
+    manualConfigs.push(`CT_MESSAGE_TYPES=${env.CT_MESSAGE_TYPES}`);
   }
   if (env.CT_MESSAGE_RESOURCE_TYPES) {
-    commaConfigs.push(`CT_MESSAGE_RESOURCE_TYPES=${env.CT_MESSAGE_RESOURCE_TYPES}`);
+    manualConfigs.push(`CT_MESSAGE_RESOURCE_TYPES=${env.CT_MESSAGE_RESOURCE_TYPES}`);
   }
-  if (commaConfigs.length > 0) {
-    console.log(`\n⚠️  Note: The following configuration values contain commas and could not be passed automatically via the commercetools CLI.`);
+  if (env.OUTBOUND_PUBLISHER_CONFIG || publisherConfig) {
+    manualConfigs.push(`OUTBOUND_PUBLISHER_CONFIG=(set from CF_* vars or .env)`);
+  }
+  if (manualConfigs.length > 0) {
+    console.log(`\n⚠️  Note: The following configuration values could not be passed automatically via the commercetools CLI.`);
     console.log(`   Please set them manually in the Connect console after deployment:\n`);
-    for (const cfg of commaConfigs) {
+    for (const cfg of manualConfigs) {
       console.log(`     ${cfg}`);
     }
     console.log();

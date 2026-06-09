@@ -13,3 +13,4 @@ email-worker/coverage/
 email-worker/dist/
 email-worker/node_modules/
 node_modules/
+**/pnpm-lock.yaml

@@ -426,7 +426,13 @@ function verifyConnectorSupportsProject(projectKey) {
       .replace(/^\[/, "")
       .replace(/\]$/, "")
       .split(",")
-      .map((p) => p.trim().replace(/['"\[\]]/g, ""))
+      .map((p) => {
+        const cleaned = p.trim().replace(/['"\[\]]/g, "");
+        // The CLI outputs projects as "region:projectKey" (e.g. "europe-west1.gcp:tylko-furniture")
+        // Strip the region prefix to get the bare project key for comparison
+        const colonIdx = cleaned.lastIndexOf(":");
+        return colonIdx !== -1 ? cleaned.slice(colonIdx + 1) : cleaned;
+      })
       .filter(Boolean);
   }
 

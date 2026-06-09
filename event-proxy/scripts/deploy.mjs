@@ -397,14 +397,43 @@ function verifyConnectorSupportsProject(projectKey) {
     return;
   }
 
-  // Extract privateProjects list
-  const privateProjectsMatch = output.match(/privateProjects:\s*\[([^\]]*)\]/);
-  const supportedProjects = privateProjectsMatch
-    ? privateProjectsMatch[1]
-        .split(",")
-        .map((p) => p.trim().replace(/['"]/g, ""))
-        .filter(Boolean)
-    : [];
+  // Extract privateProjects list — the CLI may format this as a single-line
+  // array, a multi-line array, or a YAML-style list. We collect values from
+  // the privateProjects section until we hit the next top-level field.
+  const lines = output.split("\n");
+  let inPrivateProjects = false;
+  const supportedProjects = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("privateProjects:")) {
+      inPrivateProjects = true;
+      // Capture inline array values if present on the same line
+      const inlineMatch = trimmed.match(/privateProjects:\s*\[?([^\]]*)\]?/);
+      if (inlineMatch && inlineMatch[1].trim()) {
+        const items = inlineMatch[1]
+          .split(",")
+          .map((p) => p.trim().replace(/['"]/g, ""))
+          .filter(Boolean);
+        supportedProjects.push(...items);
+      }
+      continue;
+    }
+
+    if (!inPrivateProjects) continue;
+
+    // Stop when we hit the next top-level field (non-indented, non-empty)
+    if (trimmed.length > 0 && !line.startsWith(" ") && !line.startsWith("\t")) {
+      break;
+    }
+
+    // Collect list items: "- value", "value,", or "'value'"
+    const listItemMatch = trimmed.match(/^-?\s*['"]?([^,'"\]]+)['"]?/);
+    if (listItemMatch) {
+      supportedProjects.push(listItemMatch[1].trim());
+    }
+  }
 
   if (supportedProjects.includes(projectKey)) {
     console.log(`Connector '${CONNECTOR_KEY}' supports project '${projectKey}'.`);

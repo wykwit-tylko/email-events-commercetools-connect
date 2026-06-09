@@ -132,18 +132,28 @@ EMAIL_SENDING_ENABLED=false npm run dev
 
 ### Event Proxy (commercetools Connect)
 
-1. Build and push the connector:
-   ```bash
-   cd event-proxy
-   npm run build
-   ```
-2. Deploy through the commercetools Connect console or CLI using `connect.yaml`.
-3. The `connector:post-deploy` hook automatically creates the commercetools Subscription.
-4. Verify the subscription key matches `CT_SUBSCRIPTION_KEY`.
+One-command deployment from `event-proxy/` (requires commercetools CLI and `.env` with credentials):
 
-Required production variables for the proxy:
-- `OUTBOUND_PUBLISHER_CONFIG`
+```bash
+cd event-proxy
+npm run deploy        # full pipeline: stage → publish → deploy
+npm run deploy -- --dry-run   # preview config without side effects
+```
+
+The deploy script:
+1. Reads `.env` from the working directory
+2. Auto-constructs `OUTBOUND_PUBLISHER_CONFIG` from `CF_ACCOUNT_ID`, `CF_QUEUE_ID`, `CF_QUEUE_API_TOKEN` if the full JSON is not present
+3. Validates prerequisites (CLI installed, credentials present)
+4. Authenticates, stages the connector from the latest git tag, publishes, and deploys
+5. Attempts an in-place deployment update; falls back to create-new-then-delete-old if needed
+6. Polls until the deployment reaches a terminal state
+
+Required `.env` variables:
+- `CTP_CLIENT_ID`, `CTP_CLIENT_SECRET`, `CTP_PROJECT_KEY`, `CTP_REGION` (or `CTP_AUTH_URL`)
+- Either `OUTBOUND_PUBLISHER_CONFIG` as JSON, or `CF_ACCOUNT_ID` + `CF_QUEUE_ID` + `CF_QUEUE_API_TOKEN`
 - `CT_MESSAGE_TYPES` (e.g. `OrderCreated,CustomerEmailTokenCreated,CustomerPasswordTokenCreated`)
+
+The `connector:post-deploy` hook automatically creates the commercetools Subscription after deployment.
 
 ### Email Worker (Cloudflare)
 
@@ -171,6 +181,7 @@ cd event-proxy
 npm run dev
 npm test
 npm run build
+npm run deploy          # full Connect deployment pipeline
 npm run connector:post-deploy
 npm run connector:pre-undeploy
 ```
@@ -181,7 +192,7 @@ From `email-worker/`:
 npm run dev
 npm test
 npm run build
-npm run deploy
+npm run deploy          # wrangler deploy
 ```
 
 ## Subscription Management

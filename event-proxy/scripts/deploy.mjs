@@ -516,7 +516,25 @@ function createDeployment(region, configFlags) {
   ];
   const deployCommand = deployCommandParts.join(" ");
 
-  const stdout = runWithOutput(deployCommand);
+  let stdout;
+  try {
+    stdout = runWithOutput(deployCommand);
+  } catch (e) {
+    const clean = stripAnsi(e.stdout || "");
+    if (clean.includes("AuthorizationError") || clean.includes("Access denied")) {
+      console.error("\nError: Your API client does not have permission to create Connect deployments.");
+      console.error("The commercetools CLI authenticated successfully, but the API rejected the request.");
+      console.error("\nRequired scopes for deployment management:");
+      console.error("  - manage_project  (or a Connect-specific scope like manage_connectors)");
+      console.error("\nHow to fix:");
+      console.error("  1. Go to the Merchant Center → Settings → Developer Settings → API Clients");
+      console.error("  2. Create or update an API client with the required scopes");
+      console.error("  3. Update CTP_CLIENT_ID and CTP_CLIENT_SECRET in your .env");
+      process.exit(1);
+    }
+    throw e;
+  }
+
   if (!stdout) {
     throw new Error("Deployment creation produced no output.");
   }
@@ -547,7 +565,19 @@ function updateDeployment(deploymentRef, region, configFlags, isId = false) {
     const deploymentId = extractDeploymentIdFromOutput(stdout);
 
     return { deploymentKey, deploymentId, updated: true };
-  } catch {
+  } catch (e) {
+    const clean = stripAnsi(e.stdout || "");
+    if (clean.includes("AuthorizationError") || clean.includes("Access denied")) {
+      console.error("\nError: Your API client does not have permission to update Connect deployments.");
+      console.error("The commercetools CLI authenticated successfully, but the API rejected the request.");
+      console.error("\nRequired scopes for deployment management:");
+      console.error("  - manage_project (or a Connect-specific scope like manage_connectors)");
+      console.error("\nHow to fix:");
+      console.error("  1. Go to the Merchant Center → Settings → Developer Settings → API Clients");
+      console.error("  2. Create or update an API client with the required scopes");
+      console.error("  3. Update CTP_CLIENT_ID and CTP_CLIENT_SECRET in your .env");
+      process.exit(1);
+    }
     return { updated: false };
   }
 }

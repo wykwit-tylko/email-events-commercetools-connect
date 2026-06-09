@@ -6,6 +6,7 @@ import {
 } from '../notifications/platform-message';
 import { renderOrderCreatedEmail } from '../templates/order-created';
 import { errorFields, logger } from '../shared/logger';
+import { incrementStats } from '../stats/counters';
 
 export async function handleQueue(
   batch: MessageBatch<EnqueuedCommerceNotification>,
@@ -22,6 +23,8 @@ async function handleQueueMessage(
 ): Promise<void> {
   const notification = message.body;
 
+  await incrementStats(env, 'processed');
+
   logger.info('email-worker processing message', {
     queueMessageId: message.id,
     notificationType: notification?.notificationType,
@@ -30,6 +33,7 @@ async function handleQueueMessage(
   });
 
   if (!isOrderCreatedNotification(notification)) {
+    await incrementStats(env, 'ignored');
     logger.info('email-worker ignored commerce notification', {
       queueMessageId: message.id,
       notificationType: notification?.notificationType,
@@ -46,6 +50,7 @@ async function handleQueueMessage(
   });
 
   if (await wasAlreadySent(env, notification.id)) {
+    await incrementStats(env, 'duplicate');
     logger.info('email-worker skipped duplicate notification', {
       notificationId: notification.id,
     });
@@ -58,6 +63,7 @@ async function handleQueueMessage(
   });
 
   if (!emailSendingEnabled(env)) {
+    await incrementStats(env, 'disabled');
     logger.info('email-worker email sending disabled', {
       notificationId: notification.id,
       to: notification.order.customerEmail,
@@ -77,11 +83,13 @@ async function handleQueueMessage(
       email: renderOrderCreatedEmail(notification),
     });
     await markSent(env, notification.id);
+    await incrementStats(env, 'emailsSent');
     logger.info('email-worker email sent and dedupe recorded', {
       notificationId: notification.id,
       to: notification.order.customerEmail,
     });
   } catch (error) {
+    await incrementStats(env, 'errors');
     logger.error('email-worker send failed', {
       notificationId: notification.id,
       to: notification.order.customerEmail,

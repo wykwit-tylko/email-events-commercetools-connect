@@ -1,9 +1,18 @@
 import type { EnqueuedCommerceNotification, Env } from './env';
 import { handleQueue } from './queue/handler';
+import { getStats } from './stats/counters';
 import { logger } from './shared/logger';
 
 export default {
-  async fetch(): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname === '/stats') {
+      const stats = await getStats(env);
+      return new Response(JSON.stringify(stats), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     return new Response('Email Worker is a queue consumer', { status: 200 });
   },
 

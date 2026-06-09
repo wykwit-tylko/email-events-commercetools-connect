@@ -239,7 +239,7 @@ function buildConfigFlags(env, publisherConfig) {
   for (const key of standardConfigKeys) {
     const value = env[key];
     if (value && value.trim().length > 0) {
-      flags.push(`--configuration ${prefix}.${key}=${value}`);
+      flags.push(`--configuration '${prefix}.${key}=${value}'`);
     }
   }
 

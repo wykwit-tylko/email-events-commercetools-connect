@@ -28,6 +28,7 @@ describe('handleQueue', () => {
       id: 'message-id',
       type: 'OrderCreated',
       order: {
+        id: 'order-id',
         customerEmail: 'customer@example.com',
         orderNumber: 'ORD-1',
       },
@@ -224,6 +225,7 @@ function createOrderCreatedMessage(): TestMessage {
     id: 'message-id',
     type: 'OrderCreated',
     order: {
+      id: 'order-id',
       customerEmail: 'customer@example.com',
       orderNumber: 'ORD-1',
     },

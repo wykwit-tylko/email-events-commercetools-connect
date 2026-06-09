@@ -7,7 +7,7 @@ describe('isOrderCreatedNotification', () => {
       notificationType: 'Message',
       id: 'message-id',
       type: 'OrderCreated',
-      order: { customerEmail: 'customer@example.com' },
+      order: { id: 'order-id', customerEmail: 'customer@example.com' },
     };
 
     expect(isOrderCreatedNotification(notification)).toBe(true);

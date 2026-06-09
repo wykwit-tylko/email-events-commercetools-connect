@@ -70,7 +70,7 @@ export async function handleOrderCreated(
   });
 
   try {
-    const email = renderOrderCreatedEmail(notification);
+    const email = renderOrderCreatedEmail(notification, env.STORE_URL);
     logger.info('email-worker calling email binding', {
       to: notification.order.customerEmail,
       from: env.FROM_EMAIL,
@@ -103,7 +103,7 @@ export async function handleOrderCreated(
 }
 
 function isOrderWithCustomerEmail(value: unknown): value is {
-  id?: string;
+  id: string;
   customerEmail: string;
   orderNumber?: string;
 } {
@@ -113,9 +113,10 @@ function isOrderWithCustomerEmail(value: unknown): value is {
 
   const order = value as Record<string, unknown>;
   return (
+    typeof order.id === 'string' &&
+    order.id.length > 0 &&
     typeof order.customerEmail === 'string' &&
     order.customerEmail.length > 0 &&
-    optionalString(order.id) &&
     optionalString(order.orderNumber)
   );
 }

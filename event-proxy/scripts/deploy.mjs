@@ -30,10 +30,10 @@ import { fileURLToPath } from "node:url";
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CONNECTOR_KEY = "tylko-events-proxy";
-const CONNECTOR_NAME = "Tylko Email Events Proxy";
-const CREATOR_EMAIL = "dev@tylko.dev";
-const INTEGRATION_TYPES = "event";
+const CONNECTOR_KEY = "email-events-proxy";
+const CONNECTOR_NAME = "Email Events Proxy";
+const CREATOR_EMAIL = "emails@tylko.dev";
+const INTEGRATION_TYPES = "email";
 const DEPLOYMENT_TYPE = "sandbox";
 const POLL_INTERVAL_SECONDS = 20;
 const MAX_POLL_ATTEMPTS = 60; // 20 minutes

@@ -15,3 +15,19 @@ _Avoid_: Normalized event, email command, forwarded message
 **Event Proxy**:
 A boundary component that passes Commerce Notifications toward the email service without deciding email intent. It does not choose recipients, templates, suppression rules, or whether an email should be sent.
 _Avoid_: Email router, email orchestrator, email rules engine
+
+**Proxy Enrichment**:
+The proxy fetching missing fields from the commercetools API and injecting them into a Commerce Notification before publishing it as an Email Event. Example: retrieving `customerEmail` for token messages because the Platform Message omits it. This keeps the worker passive and simple.
+_Avoid_: Normalization, transformation, message augmentation
+
+**Outbound Publisher**:
+The adapter that forwards Commerce Notifications to the queue boundary. Currently only `cloudflare-queue` is supported. The proxy does not interpret the notification when forwarding; it only adapts to the queue's format requirements.
+_Avoid_: Publisher adapter, queue driver, forwarder
+
+**Publisher Config**:
+The JSON configuration that specifies how the Outbound Publisher connects to the queue (account ID, queue ID, API token). Set via `OUTBOUND_PUBLISHER_CONFIG` or auto-constructed from `CF_*` environment variables by the deploy script.
+_Avoid_: Queue credentials, broker config
+
+**Message Type Filter**:
+The `CT_MESSAGE_TYPES` allowlist that controls which Commerce Notification types the proxy forwards. Applied after unwrapping the transport envelope but before publishing. Does not affect what the commercetools Subscription subscribes to (that's `CT_MESSAGE_RESOURCE_TYPES`).
+_Avoid_: Message filter, event filter, type whitelist

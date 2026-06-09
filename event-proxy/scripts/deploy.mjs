@@ -739,10 +739,10 @@ async function main() {
       [
         "commercetools auth login",
         "--client-credentials",
-        `--client-id '${env.CTP_CLIENT_ID}'`,
-        `--client-secret '${env.CTP_CLIENT_SECRET}'`,
-        `--region '${resolvedRegion}'`,
-        `--project-key '${env.CTP_PROJECT_KEY}'`,
+        `--client-id ${env.CTP_CLIENT_ID}`,
+        `--client-secret ${env.CTP_CLIENT_SECRET}`,
+        `--region ${resolvedRegion}`,
+        `--project-key ${env.CTP_PROJECT_KEY}`,
       ].join(" "),
     );
   }
@@ -751,21 +751,7 @@ async function main() {
   if (shouldRun("auth", from)) {
     const stepStart = Date.now();
     console.log("--- Step 3: Authenticate with commercetools ---");
-
-    // Show current auth status so the user can see if a stale token is cached
-    const status = runSilent("commercetools auth status");
-    if (status) {
-      console.log("\nCurrent CLI auth status:");
-      const lines = status.split("\n").filter((l) => l.trim());
-      for (const line of lines.slice(0, 6)) {
-        console.log(`  ${line.trim()}`);
-      }
-      if (lines.length > 6) {
-        console.log(`  ... (${lines.length - 6} more lines)`);
-      }
-    }
-
-    authenticate(true);
+    authenticate();
     console.log(`Step 3 completed in ${formatDuration(Date.now() - stepStart)}\n`);
   }
 

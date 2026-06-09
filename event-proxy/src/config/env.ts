@@ -71,17 +71,31 @@ const defaultSubscriptionKey = 'email-events-proxy';
  * Decode a value if it was base64-encoded by the deploy script to avoid
  * comma-splitting issues in the commercetools CLI.
  * Values prefixed with `b64:` are decoded; all others pass through unchanged.
+ * Also strips surrounding quotes that the deployment system may add.
  */
 function maybeBase64Decode(value: string | undefined): string | undefined {
-  if (!value || !value.startsWith('b64:')) {
+  if (!value) {
     return value;
   }
 
-  const encoded = value.slice(4);
+  // The deployment system sometimes wraps string values in quotes.
+  let cleaned = value;
+  if (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'"))
+  ) {
+    cleaned = cleaned.slice(1, -1);
+  }
+
+  if (!cleaned.startsWith('b64:')) {
+    return cleaned;
+  }
+
+  const encoded = cleaned.slice(4);
   try {
     return Buffer.from(encoded, 'base64').toString('utf8');
   } catch {
-    return value;
+    return cleaned;
   }
 }
 
@@ -199,7 +213,11 @@ function parsePublisherConfig(value: string | undefined): PublisherConfig {
   try {
     parsed = JSON.parse(value) as unknown;
   } catch {
-    throw new Error('OUTBOUND_PUBLISHER_CONFIG must be valid JSON');
+    const display =
+      value.length > 120 ? `${value.slice(0, 120)}...` : value;
+    throw new Error(
+      `OUTBOUND_PUBLISHER_CONFIG must be valid JSON. Received: ${display}`,
+    );
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {

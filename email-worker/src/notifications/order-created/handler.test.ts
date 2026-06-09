@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { isOrderCreatedNotification } from './platform-message';
+import { isOrderCreatedNotification } from './handler';
 
-describe('platform-message', () => {
+describe('isOrderCreatedNotification', () => {
   it('recognizes OrderCreated Platform Commerce Notifications', () => {
     const notification = {
       notificationType: 'Message',
@@ -18,6 +18,17 @@ describe('platform-message', () => {
       isOrderCreatedNotification({
         notificationType: 'Message',
         type: 'CustomerCreated',
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects OrderCreated notifications without a customer email', () => {
+    expect(
+      isOrderCreatedNotification({
+        notificationType: 'Message',
+        id: 'message-id',
+        type: 'OrderCreated',
+        order: {},
       }),
     ).toBe(false);
   });

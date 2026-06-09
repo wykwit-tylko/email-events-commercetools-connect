@@ -16,20 +16,12 @@ export type EmailBinding = {
   }): Promise<{ messageId?: string }>;
 };
 
-export type EnqueuedCommerceNotification = {
-  notificationType?: string;
-  id?: string;
-  type?: string;
-  order?: {
-    id?: string;
-    customerEmail?: string;
-    orderNumber?: string;
-    totalPrice?: {
-      currencyCode?: string;
-      centAmount?: number;
-      fractionDigits?: number;
-    };
-  };
+export type QueuePayload = Record<string, unknown>;
+
+export type CommerceNotification = QueuePayload & {
+  notificationType?: unknown;
+  id?: unknown;
+  type?: unknown;
 };
 
 export function emailSendingEnabled(env: Env): boolean {

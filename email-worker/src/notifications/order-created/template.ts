@@ -1,15 +1,24 @@
-import type { PlatformCommerceNotification } from '../notifications/platform-message';
-
 export type RenderedEmail = {
   subject: string;
   html: string;
   text: string;
 };
 
+export type OrderCreatedNotification = {
+  notificationType: 'Message';
+  id: string;
+  type: 'OrderCreated';
+  order: {
+    id?: string;
+    customerEmail: string;
+    orderNumber?: string;
+  };
+};
+
 export function renderOrderCreatedEmail(
-  notification: PlatformCommerceNotification,
+  notification: OrderCreatedNotification,
 ): RenderedEmail {
-  const orderNumber = notification.order?.orderNumber || notification.order?.id || 'your order';
+  const orderNumber = notification.order.orderNumber || notification.order.id || 'your order';
   const subject = `Order ${orderNumber} confirmed`;
 
   return {

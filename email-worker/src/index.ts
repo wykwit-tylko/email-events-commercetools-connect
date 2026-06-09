@@ -1,4 +1,4 @@
-import type { EnqueuedCommerceNotification, Env } from './env';
+import type { Env, QueuePayload } from './env';
 import { handleQueue } from './queue/handler';
 import { getStats } from './stats/counters';
 import { logger } from './shared/logger';
@@ -17,7 +17,7 @@ export default {
   },
 
   async queue(
-    batch: MessageBatch<EnqueuedCommerceNotification>,
+    batch: MessageBatch<QueuePayload>,
     env: Env,
   ): Promise<void> {
     logger.info('email-worker queue batch received', {
@@ -32,4 +32,4 @@ export default {
       messageCount: batch.messages.length,
     });
   },
-} satisfies ExportedHandler<Env, EnqueuedCommerceNotification>;
+} satisfies ExportedHandler<Env, QueuePayload>;

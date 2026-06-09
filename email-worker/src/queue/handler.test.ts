@@ -1,0 +1,189 @@
+import { describe, expect, it } from 'vitest';
+import type { Env, QueuePayload } from '../env';
+import { getStats } from '../stats/counters';
+import { handleQueue } from './handler';
+
+describe('handleQueue', () => {
+  it('ignores unsupported notification types', async () => {
+    const env = createTestEnv({ emailSendingEnabled: true });
+    const message = createMessage({
+      notificationType: 'Message',
+      type: 'CustomerCreated',
+    });
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(0);
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      ignored: 1,
+    });
+  });
+
+  it('sends email for OrderCreated notifications', async () => {
+    const env = createTestEnv({ emailSendingEnabled: true });
+    const message = createMessage({
+      notificationType: 'Message',
+      id: 'message-id',
+      type: 'OrderCreated',
+      order: {
+        customerEmail: 'customer@example.com',
+        orderNumber: 'ORD-1',
+      },
+    });
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toEqual([
+      expect.objectContaining({
+        to: 'customer@example.com',
+        from: 'orders@example.com',
+        subject: 'Order ORD-1 confirmed',
+      }),
+    ]);
+    await expect(env.EMAIL_DEDUPE.get('sent:message-id')).resolves.not.toBeNull();
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      emailsSent: 1,
+    });
+  });
+
+  it('skips duplicate OrderCreated notifications', async () => {
+    const env = createTestEnv({ emailSendingEnabled: true });
+    await env.EMAIL_DEDUPE.put('sent:message-id', 'already-sent');
+    const message = createOrderCreatedMessage();
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(0);
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      duplicate: 1,
+    });
+  });
+
+  it('skips email sending when disabled', async () => {
+    const env = createTestEnv({ emailSendingEnabled: false });
+    const message = createOrderCreatedMessage();
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(0);
+    await expect(env.EMAIL_DEDUPE.get('sent:message-id')).resolves.toBeNull();
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      disabled: 1,
+    });
+  });
+
+  it('records send errors and acknowledges the message', async () => {
+    const env = createTestEnv({
+      emailSendingEnabled: true,
+      sendError: new Error('send failed'),
+    });
+    const message = createOrderCreatedMessage();
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    await expect(env.EMAIL_DEDUPE.get('sent:message-id')).resolves.toBeNull();
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      errors: 1,
+    });
+  });
+});
+
+type TestEnv = Env & {
+  EMAIL_DEDUPE: TestKVNamespace;
+  sentEmails: Array<{
+    to: string;
+    from: string;
+    subject: string;
+    html: string;
+    text: string;
+  }>;
+};
+
+class TestKVNamespace {
+  private readonly values = new Map<string, string>();
+
+  async get(key: string): Promise<string | null> {
+    return this.values.get(key) ?? null;
+  }
+
+  async put(key: string, value: string): Promise<void> {
+    this.values.set(key, value);
+  }
+}
+
+function createTestEnv(options: {
+  emailSendingEnabled: boolean;
+  sendError?: Error;
+}): TestEnv {
+  const sentEmails: TestEnv['sentEmails'] = [];
+
+  return {
+    EMAIL_DEDUPE: new TestKVNamespace(),
+    EMAIL: {
+      async send(message) {
+        if (options.sendError) {
+          throw options.sendError;
+        }
+        sentEmails.push(message);
+        return { messageId: 'email-message-id' };
+      },
+    },
+    EMAIL_SENDING_ENABLED: String(options.emailSendingEnabled),
+    FROM_EMAIL: 'orders@example.com',
+    DEDUPE_TTL_SECONDS: '2592000',
+    sentEmails,
+  } as TestEnv;
+}
+
+function createOrderCreatedMessage(): TestMessage {
+  return createMessage({
+    notificationType: 'Message',
+    id: 'message-id',
+    type: 'OrderCreated',
+    order: {
+      customerEmail: 'customer@example.com',
+      orderNumber: 'ORD-1',
+    },
+  });
+}
+
+type TestMessage = Message<QueuePayload> & { acked: boolean };
+
+function createMessage(body: QueuePayload): TestMessage {
+  return {
+    id: 'queue-message-id',
+    timestamp: new Date(),
+    body,
+    attempts: 1,
+    acked: false,
+    ack() {
+      this.acked = true;
+    },
+    retry() {
+      throw new Error('retry should not be called');
+    },
+  } as TestMessage;
+}
+
+function createBatch(messages: TestMessage[]): MessageBatch<QueuePayload> {
+  return {
+    queue: 'commerce-notifications-email-dev',
+    messages,
+    ackAll() {
+      for (const message of messages) message.ack();
+    },
+    retryAll() {
+      throw new Error('retryAll should not be called');
+    },
+  } as unknown as MessageBatch<QueuePayload>;
+}

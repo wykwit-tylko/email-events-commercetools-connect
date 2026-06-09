@@ -34,16 +34,16 @@ See `event-proxy/.env.example` for all variables.
 ├── connect.yaml       # Connector application declaration
 ├── CONTEXT.md         # domain glossary
 ├── docs/              # plans and follow-up design notes
-└── event-proxy/       # self-contained Connect event application
-    ├── package.json
-    └── src/
-        ├── config/    # environment parsing and defaults
-        ├── infra/     # email-worker and commercetools API integrations
-        ├── scripts/   # local subscriber and Connect lifecycle scripts
-        ├── server/    # HTTP event endpoint and raw body handling
-        ├── shared/    # logging and small shared utilities
-        ├── test/      # test fixtures and fakes
-        └── index.ts   # application entrypoint
+├── event-proxy/       # self-contained Connect event application
+│   ├── package.json
+│   └── src/
+│       ├── config/    # environment parsing and defaults
+│       ├── infra/     # email-worker and commercetools API integrations
+│       ├── scripts/   # local subscriber and Connect lifecycle scripts
+│       ├── server/    # HTTP event endpoint and raw body handling
+│       ├── shared/    # logging and small shared utilities
+│       ├── test/      # test fixtures and fakes
+│       └── index.ts   # application entrypoint
 └── email-worker/      # Cloudflare Worker for queueing and sending emails
 ```
 
@@ -143,7 +143,7 @@ EMAIL_SENDING_ENABLED=false npm run dev
 
 Required production variables for the proxy:
 - `OUTBOUND_PUBLISHER_CONFIG`
-- `CTP_MESSAGE_TYPES` (e.g. `OrderCreated,CustomerEmailTokenCreated,CustomerPasswordTokenCreated`)
+- `CT_MESSAGE_TYPES` (e.g. `OrderCreated,CustomerEmailTokenCreated,CustomerPasswordTokenCreated`)
 
 ### Email Worker (Cloudflare)
 

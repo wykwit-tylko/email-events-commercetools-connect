@@ -54,13 +54,11 @@ describe('config', () => {
 
   it('loads subscription config with resource type de-duplication', () => {
     const config = loadSubscriptionConfig({
-      CTP_API_URL: 'https://api.europe-west1.gcp.commercetools.com',
-      CTP_AUTH_URL: 'https://auth.europe-west1.gcp.commercetools.com',
+      CTP_REGION: 'europe-west1.gcp',
       CTP_PROJECT_KEY: 'project',
       CTP_CLIENT_ID: 'client-id',
       CTP_CLIENT_SECRET: 'client-secret',
       CTP_SCOPE: 'manage_subscriptions:project',
-      CT_DELIVERY_FORMAT: 'CloudEvents',
       CT_MESSAGE_RESOURCE_TYPES: 'order, customer, order',
     });
 

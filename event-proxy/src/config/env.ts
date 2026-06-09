@@ -93,22 +93,40 @@ export function loadAppConfig(env: Env = process.env): AppConfig {
   };
 }
 
-export function loadCtpConfig(env: Env = process.env): CtpConfig {
+export function loadCtpConfig(env: Env = process.env): CtpConfig | undefined {
+  const region = env.CTP_REGION;
+  const projectKey = env.CTP_PROJECT_KEY;
+  const clientId = env.CTP_CLIENT_ID;
+  const clientSecret = env.CTP_CLIENT_SECRET;
+  const scope = env.CTP_SCOPE;
+
+  if (!region || !projectKey || !clientId || !clientSecret || !scope) {
+    return undefined;
+  }
+
   return {
-    ctpApiUrl: env.CTP_API_URL || apiUrlFromRegion(requireEnv(env, 'CTP_REGION')),
-    ctpAuthUrl: env.CTP_AUTH_URL || authUrlFromRegion(requireEnv(env, 'CTP_REGION')),
-    ctpProjectKey: requireEnv(env, 'CTP_PROJECT_KEY'),
-    ctpClientId: requireEnv(env, 'CTP_CLIENT_ID'),
-    ctpClientSecret: requireEnv(env, 'CTP_CLIENT_SECRET'),
-    ctpScope: requireEnv(env, 'CTP_SCOPE'),
+    ctpApiUrl: env.CTP_API_URL || apiUrlFromRegion(region),
+    ctpAuthUrl: env.CTP_AUTH_URL || authUrlFromRegion(region),
+    ctpProjectKey: projectKey,
+    ctpClientId: clientId,
+    ctpClientSecret: clientSecret,
+    ctpScope: scope,
   };
 }
 
 export function loadSubscriptionConfig(
   env: Env = process.env,
 ): SubscriptionConfig {
+  const ctpConfig = loadCtpConfig(env);
+  if (!ctpConfig) {
+    throw new Error(
+      'CTP credentials are required for subscription management. ' +
+        'Provide CTP_REGION, CTP_PROJECT_KEY, CTP_CLIENT_ID, CTP_CLIENT_SECRET, and CTP_SCOPE.',
+    );
+  }
+
   return {
-    ...loadCtpConfig(env),
+    ...ctpConfig,
     subscriptionKey: env.CT_SUBSCRIPTION_KEY || defaultSubscriptionKey,
     messageResourceTypes: parseMessageResourceTypes(env.CT_MESSAGE_RESOURCE_TYPES),
     deliveryFormat: 'Platform',

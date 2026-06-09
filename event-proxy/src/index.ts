@@ -9,7 +9,7 @@ import { logger } from './shared/logger.js';
 async function main(): Promise<void> {
   const config = loadAppConfig();
   const ctpConfig = loadCtpConfig();
-  const commercetoolsClient = new CommercetoolsClient(ctpConfig);
+  const commercetoolsClient = ctpConfig ? new CommercetoolsClient(ctpConfig) : undefined;
   const publisher = createPublisher(config);
   const inspectionStore = config.devInspectionEnabled
     ? new InspectionStore(config.devInspectionMaxMessages)

@@ -77,7 +77,7 @@ export function createApp(options: {
         requestBytes: rawBody.length,
         publishedBytes: commerceNotification.body.length,
         dryRun: options.config.dryRunForwarding,
-        bodyBase64: commerceNotification.body.toString('base64'),
+        body: queuePayload,
       });
 
       options.logger.info('commerce notification forwarded', {

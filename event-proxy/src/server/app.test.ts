@@ -168,9 +168,9 @@ describe('event proxy app', () => {
       .expect(200);
 
     expect(listResponse.body.results).toHaveLength(1);
-    expect(listResponse.body.results[0].bodyBase64).toBe(
-      Buffer.from('{"type":"OrderCreated"}').toString('base64'),
-    );
+    expect(listResponse.body.results[0].body).toEqual({
+      type: 'OrderCreated',
+    });
   });
 
   it('returns 400 for invalid Commerce Notification JSON', async () => {

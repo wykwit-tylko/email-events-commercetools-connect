@@ -5,7 +5,7 @@ export type InspectionEntry = {
   requestBytes: number;
   publishedBytes: number;
   dryRun: boolean;
-  bodyBase64: string;
+  body: Record<string, unknown>;
 };
 
 export class InspectionStore {

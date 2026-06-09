@@ -8,14 +8,12 @@
     "gcp-build": "npm run build",
     "start": "node dist/src/index.js",
     "dev": "tsx src/index.ts",
-    "dev:subscribe": "tsx src/scripts/dev-subscribe.ts",
     "test": "node scripts/run-tests.cjs",
     "test:integration": "vitest run \"src/**/*.integration.test.ts\" --passWithNoTests",
     "connector:post-deploy": "node dist/src/scripts/post-deploy.js",
     "connector:pre-undeploy": "node dist/src/scripts/pre-undeploy.js"
   },
   "dependencies": {
-    "@nats-io/transport-node": "^3.4.0",
     "express": "^4.19.2"
   },
   "devDependencies": {

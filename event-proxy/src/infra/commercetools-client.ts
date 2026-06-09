@@ -103,7 +103,7 @@ export class CommercetoolsClient {
   ): Promise<Response> {
     const token = await this.getToken();
     const response = await fetch(
-      `https://api.${this.config.ctpRegion}.commercetools.com/${this.config.ctpProjectKey}${path}`,
+      `${this.config.ctpApiUrl}/${this.config.ctpProjectKey}${path}`,
       {
         ...options,
         headers: {
@@ -134,7 +134,7 @@ export class CommercetoolsClient {
     ).toString('base64');
 
     const response = await fetch(
-      `https://auth.${this.config.ctpRegion}.commercetools.com/oauth/token`,
+      `${this.config.ctpAuthUrl}/oauth/token`,
       {
         method: 'POST',
         headers: {

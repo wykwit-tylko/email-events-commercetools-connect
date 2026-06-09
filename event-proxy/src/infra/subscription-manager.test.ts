@@ -18,7 +18,8 @@ const destination: Destination = {
 };
 
 const config: SubscriptionConfig = {
-  ctpRegion: 'europe-west1.gcp',
+  ctpApiUrl: 'https://api.europe-west1.gcp.commercetools.com',
+  ctpAuthUrl: 'https://auth.europe-west1.gcp.commercetools.com',
   ctpProjectKey: 'project',
   ctpClientId: 'client-id',
   ctpClientSecret: 'client-secret',

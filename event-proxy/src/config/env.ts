@@ -27,16 +27,20 @@ export type DeliveryFormat = 'Platform' | 'CloudEvents';
 
 export type AppConfig = {
   port: number;
-  natsUrl: string;
-  natsAuthToken: string;
-  natsSubject: string;
+  cloudflareAccountId: string;
+  cloudflareQueueId: string;
+  cloudflareApiToken: string;
   maxBodyBytes: number;
-  natsPublishTimeoutMs: number;
+  forwardingTimeoutMs: number;
+  dryRunForwarding: boolean;
+  devInspectionEnabled: boolean;
+  devInspectionMaxMessages: number;
   connectSubscriptionDestination?: string;
 };
 
 export type SubscriptionConfig = {
-  ctpRegion: string;
+  ctpApiUrl: string;
+  ctpAuthUrl: string;
   ctpProjectKey: string;
   ctpClientId: string;
   ctpClientSecret: string;
@@ -52,24 +56,30 @@ export type SubscriptionConfig = {
 
 type Env = Record<string, string | undefined>;
 
-const defaultSubject = 'commerce-notifications.email';
 const defaultSubscriptionKey = 'email-events-proxy';
 
 export function loadAppConfig(env: Env = process.env): AppConfig {
   return {
     port: parsePositiveInteger(env.PORT, 8080, 'PORT'),
-    natsUrl: requireEnv(env, 'NATS_URL'),
-    natsAuthToken: requireEnv(env, 'NATS_AUTH_TOKEN'),
-    natsSubject: env.NATS_SUBJECT || defaultSubject,
+    cloudflareAccountId: requireEnv(env, 'CLOUDFLARE_ACCOUNT_ID'),
+    cloudflareQueueId: requireEnv(env, 'CLOUDFLARE_QUEUE_ID'),
+    cloudflareApiToken: requireEnv(env, 'CLOUDFLARE_API_TOKEN'),
     maxBodyBytes: parsePositiveInteger(
       env.MAX_BODY_BYTES,
-      1_048_576,
+      90_000,
       'MAX_BODY_BYTES',
     ),
-    natsPublishTimeoutMs: parsePositiveInteger(
-      env.NATS_PUBLISH_TIMEOUT_MS,
+    forwardingTimeoutMs: parsePositiveInteger(
+      env.FORWARDING_TIMEOUT_MS,
       2_000,
-      'NATS_PUBLISH_TIMEOUT_MS',
+      'FORWARDING_TIMEOUT_MS',
+    ),
+    dryRunForwarding: parseBoolean(env.DRY_RUN_FORWARDING, false),
+    devInspectionEnabled: parseBoolean(env.DEV_INSPECTION_ENABLED, false),
+    devInspectionMaxMessages: parsePositiveInteger(
+      env.DEV_INSPECTION_MAX_MESSAGES,
+      100,
+      'DEV_INSPECTION_MAX_MESSAGES',
     ),
     connectSubscriptionDestination: env.CONNECT_SUBSCRIPTION_DESTINATION,
   };
@@ -79,14 +89,15 @@ export function loadSubscriptionConfig(
   env: Env = process.env,
 ): SubscriptionConfig {
   return {
-    ctpRegion: requireEnv(env, 'CTP_REGION'),
+    ctpApiUrl: env.CTP_API_URL || apiUrlFromRegion(requireEnv(env, 'CTP_REGION')),
+    ctpAuthUrl: env.CTP_AUTH_URL || authUrlFromRegion(requireEnv(env, 'CTP_REGION')),
     ctpProjectKey: requireEnv(env, 'CTP_PROJECT_KEY'),
     ctpClientId: requireEnv(env, 'CTP_CLIENT_ID'),
     ctpClientSecret: requireEnv(env, 'CTP_CLIENT_SECRET'),
     ctpScope: requireEnv(env, 'CTP_SCOPE'),
     subscriptionKey: env.CT_SUBSCRIPTION_KEY || defaultSubscriptionKey,
     messageResourceTypes: parseMessageResourceTypes(env.CT_MESSAGE_RESOURCE_TYPES),
-    deliveryFormat: parseDeliveryFormat(env.CT_DELIVERY_FORMAT),
+    deliveryFormat: 'Platform',
     connectSubscriptionDestination: env.CONNECT_SUBSCRIPTION_DESTINATION,
     connectGcpProjectId: env.CONNECT_GCP_PROJECT_ID,
     connectGcpTopicName: env.CONNECT_GCP_TOPIC_NAME,
@@ -119,6 +130,14 @@ function parseDeliveryFormat(value: string | undefined): DeliveryFormat {
   throw new Error('CT_DELIVERY_FORMAT must be either Platform or CloudEvents');
 }
 
+function apiUrlFromRegion(region: string): string {
+  return `https://api.${region}.commercetools.com`;
+}
+
+function authUrlFromRegion(region: string): string {
+  return `https://auth.${region}.commercetools.com`;
+}
+
 function requireEnv(env: Env, key: string): string {
   const value = env[key];
   if (!value) {
@@ -142,4 +161,20 @@ function parsePositiveInteger(
   }
 
   return parsed;
+}
+
+function parseBoolean(value: string | undefined, defaultValue: boolean): boolean {
+  if (!value) {
+    return defaultValue;
+  }
+
+  if (value === 'true') {
+    return true;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  throw new Error('Boolean environment values must be true or false');
 }

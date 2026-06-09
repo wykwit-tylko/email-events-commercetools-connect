@@ -1,10 +1,12 @@
-import type { NatsPublisher, PublishOptions } from '../infra/nats-publisher.js';
+import type {
+  CommerceNotificationPublisher,
+  PublishOptions,
+} from '../infra/commerce-notification-publisher.js';
 import type { Logger } from '../shared/logger.js';
 
-export class FakePublisher implements NatsPublisher {
+export class FakePublisher implements CommerceNotificationPublisher {
   published: Array<{
-    subject: string;
-    payload: Buffer;
+    payload: unknown;
     options?: PublishOptions;
   }> = [];
   ready = true;
@@ -12,8 +14,7 @@ export class FakePublisher implements NatsPublisher {
   neverResolve = false;
 
   async publish(
-    subject: string,
-    payload: Uint8Array,
+    payload: unknown,
     options?: PublishOptions,
   ): Promise<void> {
     if (this.error) {
@@ -26,8 +27,7 @@ export class FakePublisher implements NatsPublisher {
     }
 
     this.published.push({
-      subject,
-      payload: Buffer.from(payload),
+      payload,
       options,
     });
   }

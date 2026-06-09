@@ -2,19 +2,23 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
 import type { AppConfig } from '../config/env.js';
+import { InspectionStore } from '../dev-inspection/inspection-store.js';
 import { createSilentLogger, FakePublisher } from '../test/test-utils.js';
 
 const baseConfig: AppConfig = {
   port: 8080,
-  natsUrl: 'nats://localhost:4222',
-  natsAuthToken: 'token',
-  natsSubject: 'commerce-notifications.email',
+  cloudflareAccountId: 'account-id',
+  cloudflareQueueId: 'queue-id',
+  cloudflareApiToken: 'token',
   maxBodyBytes: 1024,
-  natsPublishTimeoutMs: 50,
+  forwardingTimeoutMs: 50,
+  dryRunForwarding: false,
+  devInspectionEnabled: false,
+  devInspectionMaxMessages: 100,
 };
 
 describe('event proxy app', () => {
-  it('publishes the exact raw request body to NATS', async () => {
+  it('publishes parsed Commerce Notification JSON to the outbound publisher', async () => {
     const publisher = new FakePublisher();
     const app = createApp({
       config: baseConfig,
@@ -31,8 +35,10 @@ describe('event proxy app', () => {
       .expect(200);
 
     expect(publisher.published).toHaveLength(1);
-    expect(publisher.published[0]?.subject).toBe(baseConfig.natsSubject);
-    expect(publisher.published[0]?.payload.equals(body)).toBe(true);
+    expect(publisher.published[0]?.payload).toEqual({
+      type: 'OrderCreated',
+      spacing: true,
+    });
     expect(publisher.published[0]?.options?.contentType).toContain(
       'application/json',
     );
@@ -66,9 +72,10 @@ describe('event proxy app', () => {
       .expect(200);
 
     expect(publisher.published).toHaveLength(1);
-    expect(publisher.published[0]?.payload.equals(commerceNotification)).toBe(
-      true,
-    );
+    expect(publisher.published[0]?.payload).toEqual({
+      notificationType: 'Message',
+      type: 'OrderCreated',
+    });
   });
 
   it('returns 413 when the request body exceeds the configured limit', async () => {
@@ -84,7 +91,7 @@ describe('event proxy app', () => {
     expect(publisher.published).toHaveLength(0);
   });
 
-  it('returns 503 when NATS is not ready', async () => {
+  it('returns 503 when the publisher is not ready', async () => {
     const publisher = new FakePublisher();
     publisher.ready = false;
     const app = createApp({
@@ -93,12 +100,16 @@ describe('event proxy app', () => {
       logger: createSilentLogger(),
     });
 
-    await request(app).post('/event-proxy').send('body').expect(503);
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"type":"OrderCreated"}')
+      .expect(503);
 
     expect(publisher.published).toHaveLength(0);
   });
 
-  it('returns 503 when NATS publish fails', async () => {
+  it('returns 503 when forwarding fails', async () => {
     const publisher = new FakePublisher();
     publisher.error = new Error('publish failed');
     const app = createApp({
@@ -107,18 +118,82 @@ describe('event proxy app', () => {
       logger: createSilentLogger(),
     });
 
-    await request(app).post('/event-proxy').send('body').expect(503);
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"type":"OrderCreated"}')
+      .expect(503);
   });
 
-  it('returns 503 when NATS publish times out', async () => {
+  it('returns 503 when forwarding times out', async () => {
     const publisher = new FakePublisher();
     publisher.neverResolve = true;
     const app = createApp({
-      config: { ...baseConfig, natsPublishTimeoutMs: 1 },
+      config: { ...baseConfig, forwardingTimeoutMs: 1 },
       publisher,
       logger: createSilentLogger(),
     });
 
-    await request(app).post('/event-proxy').send('body').expect(503);
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"type":"OrderCreated"}')
+      .expect(503);
+  });
+
+  it('stores messages in the dev inspection log when enabled', async () => {
+    const publisher = new FakePublisher();
+    const inspectionStore = new InspectionStore(2);
+    const app = createApp({
+      config: {
+        ...baseConfig,
+        devInspectionEnabled: true,
+        dryRunForwarding: true,
+      },
+      publisher,
+      logger: createSilentLogger(),
+      inspectionStore,
+    });
+
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"type":"OrderCreated"}')
+      .expect(200);
+
+    expect(publisher.published).toHaveLength(0);
+
+    const listResponse = await request(app)
+      .get('/event-proxy/dev/messages')
+      .expect(200);
+
+    expect(listResponse.body.results).toHaveLength(1);
+    expect(listResponse.body.results[0].bodyBase64).toBe(
+      Buffer.from('{"type":"OrderCreated"}').toString('base64'),
+    );
+  });
+
+  it('returns 400 for invalid Commerce Notification JSON', async () => {
+    const publisher = new FakePublisher();
+    const app = createApp({
+      config: baseConfig,
+      publisher,
+      logger: createSilentLogger(),
+    });
+
+    await request(app).post('/event-proxy').send('not-json').expect(400);
+
+    expect(publisher.published).toHaveLength(0);
+  });
+
+  it('does not expose dev inspection endpoints when disabled', async () => {
+    const publisher = new FakePublisher();
+    const app = createApp({
+      config: baseConfig,
+      publisher,
+      logger: createSilentLogger(),
+    });
+
+    await request(app).get('/event-proxy/dev/messages').expect(404);
   });
 });

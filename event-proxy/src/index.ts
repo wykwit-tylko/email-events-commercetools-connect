@@ -1,25 +1,33 @@
 import { loadAppConfig } from './config/env.js';
-import { createNatsPublisher } from './infra/nats-publisher.js';
+import { InspectionStore } from './dev-inspection/inspection-store.js';
+import { CloudflareQueuePublisher } from './infra/cloudflare-queue-publisher.js';
 import { createApp } from './server/app.js';
 import { logger } from './shared/logger.js';
 
 async function main(): Promise<void> {
   const config = loadAppConfig();
-  const publisher = await createNatsPublisher({
-    servers: config.natsUrl,
-    token: config.natsAuthToken,
+  const publisher = new CloudflareQueuePublisher({
+    accountId: config.cloudflareAccountId,
+    queueId: config.cloudflareQueueId,
+    apiToken: config.cloudflareApiToken,
+    timeoutMs: config.forwardingTimeoutMs,
   });
+  const inspectionStore = config.devInspectionEnabled
+    ? new InspectionStore(config.devInspectionMaxMessages)
+    : undefined;
 
   logger.info('event proxy starting', {
     port: config.port,
-    natsUrl: config.natsUrl,
-    natsSubject: config.natsSubject,
+    cloudflareAccountId: config.cloudflareAccountId,
+    cloudflareQueueId: config.cloudflareQueueId,
     maxBodyBytes: config.maxBodyBytes,
-    natsPublishTimeoutMs: config.natsPublishTimeoutMs,
-    natsAuthToken: '[redacted]',
+    forwardingTimeoutMs: config.forwardingTimeoutMs,
+    dryRunForwarding: config.dryRunForwarding,
+    devInspectionEnabled: config.devInspectionEnabled,
+    cloudflareApiToken: '[redacted]',
   });
 
-  const app = createApp({ config, publisher, logger });
+  const app = createApp({ config, publisher, logger, inspectionStore });
   const server = app.listen(config.port, () => {
     logger.info('event proxy listening', { port: config.port });
   });

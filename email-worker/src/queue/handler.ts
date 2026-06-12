@@ -2,7 +2,7 @@ import { type CommerceNotification, type Env, type QueuePayload } from '../env';
 import { handleCustomerEmailVerification } from '../notifications/customer-email-verification/handler';
 import { handleCustomerPasswordReset } from '../notifications/customer-password-reset/handler';
 import { handleOrderCreated } from '../notifications/order-created/handler';
-import { logger } from '../shared/logger';
+import { errorFields, logger } from '../shared/logger';
 import { incrementStats } from '../stats/counters';
 
 export async function handleQueue(
@@ -10,7 +10,16 @@ export async function handleQueue(
   env: Env,
 ): Promise<void> {
   for (const message of batch.messages) {
-    await handleQueueMessage(message as Message<CommerceNotification>, env);
+    try {
+      await handleQueueMessage(message as Message<CommerceNotification>, env);
+    } catch (error) {
+      // One broken message must not fail the whole batch; retry it alone.
+      logger.error('email-worker unexpected message handling failure', {
+        queueMessageId: message.id,
+        ...errorFields(error),
+      });
+      message.retry();
+    }
   }
 }
 

@@ -87,7 +87,21 @@ export async function handleOrderCreated(
       html: email.html,
       text: email.text,
     });
-    logger.info('email-worker email binding returned');
+  } catch (error) {
+    await incrementStats(env, 'errors');
+    logger.error('email-worker send failed', {
+      notificationId: notification.id,
+      to: notification.order.customerEmail,
+      ...errorFields(error),
+    });
+    // Transient Email API failures must not drop emails; let the queue redeliver.
+    message.retry();
+    return;
+  }
+
+  logger.info('email-worker email binding returned');
+
+  try {
     await markSent(env, notification.id);
     await incrementStats(env, 'emailsSent');
     logger.info('email-worker email sent and dedupe recorded', {
@@ -95,10 +109,9 @@ export async function handleOrderCreated(
       to: notification.order.customerEmail,
     });
   } catch (error) {
-    await incrementStats(env, 'errors');
-    logger.error('email-worker send failed', {
+    // The email is already out; prefer a rare duplicate on redelivery over loss.
+    logger.error('email-worker failed to record sent state after send', {
       notificationId: notification.id,
-      to: notification.order.customerEmail,
       ...errorFields(error),
     });
   }

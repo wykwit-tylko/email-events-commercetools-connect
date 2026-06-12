@@ -81,7 +81,7 @@ describe('handleQueue', () => {
     });
   });
 
-  it('records send errors and acknowledges the message', async () => {
+  it('retries the message when sending fails', async () => {
     const env = createTestEnv({
       emailSendingEnabled: true,
       sendError: new Error('send failed'),
@@ -90,12 +90,48 @@ describe('handleQueue', () => {
 
     await handleQueue(createBatch([message]), env);
 
-    expect(message.acked).toBe(true);
+    expect(message.acked).toBe(false);
+    expect(message.retried).toBe(true);
     await expect(env.EMAIL_DEDUPE.get('sent:message-id')).resolves.toBeNull();
     await expect(getStats(env)).resolves.toMatchObject({
       processed: 1,
       errors: 1,
     });
+  });
+
+  it('acknowledges the message when recording dedupe fails after a successful send', async () => {
+    const env = createTestEnv({ emailSendingEnabled: true });
+    env.EMAIL_DEDUPE.failPutKeys.add('sent:message-id');
+    const message = createOrderCreatedMessage();
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(env.sentEmails).toHaveLength(1);
+    expect(message.acked).toBe(true);
+    expect(message.retried).toBe(false);
+  });
+
+  it('retries a message that fails unexpectedly without failing the rest of the batch', async () => {
+    const env = createTestEnv({ emailSendingEnabled: true });
+    env.EMAIL_DEDUPE.failGetKeys.add('sent:failing-id');
+    const failing = createMessage({
+      notificationType: 'Message',
+      id: 'failing-id',
+      type: 'OrderCreated',
+      order: {
+        id: 'order-id',
+        customerEmail: 'customer@example.com',
+        orderNumber: 'ORD-2',
+      },
+    });
+    const ok = createOrderCreatedMessage();
+
+    await handleQueue(createBatch([failing, ok]), env);
+
+    expect(failing.retried).toBe(true);
+    expect(failing.acked).toBe(false);
+    expect(ok.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(1);
   });
 
   it('sends email for CustomerEmailTokenCreated notifications', async () => {
@@ -184,12 +220,20 @@ type TestEnv = Env & {
 
 class TestKVNamespace {
   private readonly values = new Map<string, string>();
+  readonly failGetKeys = new Set<string>();
+  readonly failPutKeys = new Set<string>();
 
   async get(key: string): Promise<string | null> {
+    if (this.failGetKeys.has(key)) {
+      throw new Error(`KV get failed for ${key}`);
+    }
     return this.values.get(key) ?? null;
   }
 
   async put(key: string, value: string): Promise<void> {
+    if (this.failPutKeys.has(key)) {
+      throw new Error(`KV put failed for ${key}`);
+    }
     this.values.set(key, value);
   }
 }
@@ -232,7 +276,7 @@ function createOrderCreatedMessage(): TestMessage {
   });
 }
 
-type TestMessage = Message<QueuePayload> & { acked: boolean };
+type TestMessage = Message<QueuePayload> & { acked: boolean; retried: boolean };
 
 function createMessage(body: QueuePayload): TestMessage {
   return {
@@ -241,11 +285,12 @@ function createMessage(body: QueuePayload): TestMessage {
     body,
     attempts: 1,
     acked: false,
+    retried: false,
     ack() {
       this.acked = true;
     },
     retry() {
-      throw new Error('retry should not be called');
+      this.retried = true;
     },
   } as TestMessage;
 }

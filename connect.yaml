@@ -42,6 +42,9 @@ deployAs:
         - key: OUTBOUND_PUBLISHER_CONFIG
           description: JSON configuration for the selected Commerce Notification publisher adapter
           required: true
+        - key: DEV_INSPECTION_TOKEN
+          description: Bearer token required by the development inspection endpoints; they respond 404 when unset (fail closed)
+          required: false
 
 inheritAs:
   apiClient:

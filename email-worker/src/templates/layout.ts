@@ -69,7 +69,7 @@ export function codeBox(code: string): string {
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 8px 0 24px;">
       <tr>
-        <td style="background: ${COLOR.surface}; border: 1px solid ${COLOR.border}; padding: 20px 24px; font-family: 'Courier New', Courier, monospace; font-size: 16px; font-weight: 700; letter-spacing: 0.08em; color: ${COLOR.ink}; word-break: break-all;">${escapeHtml(code)}</td>
+        <td style="background: ${COLOR.surface}; border: 1px solid ${COLOR.border}; padding: 20px 24px; font-family: 'Courier New', Courier, monospace; font-size: 16px; font-weight: 700; color: ${COLOR.ink}; word-break: break-all;">${escapeHtml(code)}</td>
       </tr>
     </table>`;
 }

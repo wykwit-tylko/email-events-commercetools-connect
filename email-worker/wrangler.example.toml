@@ -15,11 +15,22 @@ DEDUPE_TTL_SECONDS = "2592000"
 # Storefront URL used in email links (e.g. order details, password reset)
 STORE_URL = "https://your-store.example.com"
 
+# Shared with the storefront's NUXT_ORDER_LINK_SECRET; signs guest order links.
+# Production must NOT keep this in [vars] — set it as a secret instead:
+#   wrangler secret put ORDER_LINK_SECRET
+# ORDER_LINK_SECRET = "dev-only-secret"
+
 [[queues.consumers]]
 # Queue that carries Commerce Notifications from the proxy
 queue = "your-queue-name"
 max_batch_size = 10
 max_batch_timeout = 5
+# Redeliver failed messages (e.g. transient Email API outages) up to 5 times.
+max_retries = 5
+# Messages that exhaust max_retries land here instead of being dropped.
+# The DLQ must be created before production deploys:
+#   wrangler queues create email-events-dlq
+dead_letter_queue = "email-events-dlq"
 
 [[kv_namespaces]]
 # KV namespace for deduplication (sent:${notification.id})

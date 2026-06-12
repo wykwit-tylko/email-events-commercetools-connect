@@ -35,7 +35,7 @@ export function renderPasswordResetEmail(
     ctaButton('Reset password', resetUrl),
     linkFallback(resetUrl),
     paragraph(
-      "The link stays valid for about an hour and only the most recent link works. If you didn't request a password reset, you can safely ignore this email.",
+      "The link stays valid for 30 minutes and only the most recent link works. If you didn't request a password reset, you can safely ignore this email.",
     ),
   ].join('\n');
 
@@ -50,6 +50,6 @@ export function renderPasswordResetEmail(
       },
       storeUrl,
     ),
-    text: `Reset your password\n\nHi,\n\nWe received a request to reset the password for your ShelfMarket account. Open this link to choose a new password:\n\n${resetUrl}\n\nThe link stays valid for about an hour and only the most recent link works. If you didn't request a password reset, you can safely ignore this email.`,
+    text: `Reset your password\n\nHi,\n\nWe received a request to reset the password for your ShelfMarket account. Open this link to choose a new password:\n\n${resetUrl}\n\nThe link stays valid for 30 minutes and only the most recent link works. If you didn't request a password reset, you can safely ignore this email.`,
   };
 }

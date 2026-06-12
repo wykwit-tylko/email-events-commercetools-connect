@@ -41,6 +41,7 @@ export type AppConfig = {
   dryRunForwarding: boolean;
   devInspectionEnabled: boolean;
   devInspectionMaxMessages: number;
+  devInspectionToken?: string;
   connectSubscriptionDestination?: string;
 };
 
@@ -123,6 +124,7 @@ export function loadAppConfig(env: Env = process.env): AppConfig {
       100,
       'DEV_INSPECTION_MAX_MESSAGES',
     ),
+    devInspectionToken: env.DEV_INSPECTION_TOKEN || undefined,
     connectSubscriptionDestination: env.CONNECT_SUBSCRIPTION_DESTINATION,
   };
 }

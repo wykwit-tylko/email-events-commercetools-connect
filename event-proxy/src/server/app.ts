@@ -1,4 +1,9 @@
-import express, { type Express, type Request, type Response } from 'express';
+import express, {
+  type Express,
+  type NextFunction,
+  type Request,
+  type Response,
+} from 'express';
 import {
   DecodedPayloadTooLargeError,
   extractCommerceNotificationBody,
@@ -27,23 +32,45 @@ export function createApp(options: {
   const app = express();
 
   if (options.config.devInspectionEnabled && options.inspectionStore) {
-    app.get('/event-proxy/dev/messages', (_request, response) => {
-      response.status(200).json({ results: options.inspectionStore?.list() || [] });
-    });
+    const inspectionToken = options.config.devInspectionToken;
 
-    app.get('/event-proxy/dev/messages/:id', (request, response) => {
-      const entry = options.inspectionStore?.get(request.params.id);
-      if (!entry) {
-        response.status(404).send('Inspection entry not found');
-        return;
-      }
-      response.status(200).json(entry);
-    });
+    if (!inspectionToken) {
+      // Fail closed: without a token the inspection endpoints stay
+      // unregistered and respond 404 even when inspection is enabled.
+      options.logger.warn(
+        'dev inspection enabled but DEV_INSPECTION_TOKEN is not set; inspection endpoints are disabled',
+      );
+    } else {
+      const requireInspectionAuth = (
+        request: Request,
+        response: Response,
+        next: NextFunction,
+      ): void => {
+        if (request.header('authorization') !== `Bearer ${inspectionToken}`) {
+          response.status(401).send('Unauthorized');
+          return;
+        }
+        next();
+      };
 
-    app.delete('/event-proxy/dev/messages', (_request, response) => {
-      options.inspectionStore?.clear();
-      response.status(204).send();
-    });
+      app.get('/event-proxy/dev/messages', requireInspectionAuth, (_request, response) => {
+        response.status(200).json({ results: options.inspectionStore?.list() || [] });
+      });
+
+      app.get('/event-proxy/dev/messages/:id', requireInspectionAuth, (request, response) => {
+        const entry = options.inspectionStore?.get(request.params.id);
+        if (!entry) {
+          response.status(404).send('Inspection entry not found');
+          return;
+        }
+        response.status(200).json(entry);
+      });
+
+      app.delete('/event-proxy/dev/messages', requireInspectionAuth, (_request, response) => {
+        options.inspectionStore?.clear();
+        response.status(204).send();
+      });
+    }
   }
 
   app.post('/event-proxy', async (request: Request, response: Response) => {

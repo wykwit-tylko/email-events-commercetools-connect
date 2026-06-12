@@ -1,3 +1,5 @@
+import { redactInspectionBody } from './redact.js';
+
 export type InspectionEntry = {
   id: string;
   receivedAt: string;
@@ -19,6 +21,7 @@ export class InspectionStore {
       id: String(this.nextId),
       receivedAt: new Date().toISOString(),
       ...entry,
+      body: redactInspectionBody(entry.body),
     };
     this.nextId += 1;
 

@@ -217,6 +217,7 @@ describe('event proxy app', () => {
       config: {
         ...baseConfig,
         devInspectionEnabled: true,
+        devInspectionToken: 'inspect-secret',
         dryRunForwarding: true,
       },
       publisher,
@@ -234,11 +235,89 @@ describe('event proxy app', () => {
 
     const listResponse = await request(app)
       .get('/event-proxy/dev/messages')
+      .set('Authorization', 'Bearer inspect-secret')
       .expect(200);
 
     expect(listResponse.body.results).toHaveLength(1);
     expect(listResponse.body.results[0].body).toEqual({
       type: 'OrderCreated',
+    });
+  });
+
+  it('rejects dev inspection requests without the expected bearer token', async () => {
+    const inspectionStore = new InspectionStore(2);
+    const app = createApp({
+      config: {
+        ...baseConfig,
+        devInspectionEnabled: true,
+        devInspectionToken: 'inspect-secret',
+      },
+      publisher: new FakePublisher(),
+      logger: createSilentLogger(),
+      inspectionStore,
+    });
+
+    await request(app).get('/event-proxy/dev/messages').expect(401);
+    await request(app)
+      .get('/event-proxy/dev/messages')
+      .set('Authorization', 'Bearer wrong-token')
+      .expect(401);
+    await request(app)
+      .get('/event-proxy/dev/messages/1')
+      .expect(401);
+    await request(app).delete('/event-proxy/dev/messages').expect(401);
+  });
+
+  it('responds 404 on dev inspection endpoints when no token is configured', async () => {
+    const logger = createSilentLogger();
+    const app = createApp({
+      config: {
+        ...baseConfig,
+        devInspectionEnabled: true,
+      },
+      publisher: new FakePublisher(),
+      logger,
+      inspectionStore: new InspectionStore(2),
+    });
+
+    await request(app).get('/event-proxy/dev/messages').expect(404);
+    await request(app)
+      .get('/event-proxy/dev/messages')
+      .set('Authorization', 'Bearer anything')
+      .expect(404);
+  });
+
+  it('redacts token values and masks emails in stored inspection entries', async () => {
+    const publisher = new FakePublisher();
+    const inspectionStore = new InspectionStore(2);
+    const app = createApp({
+      config: {
+        ...baseConfig,
+        devInspectionEnabled: true,
+        devInspectionToken: 'inspect-secret',
+        dryRunForwarding: true,
+      },
+      publisher,
+      logger: createSilentLogger(),
+      inspectionStore,
+    });
+
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"notificationType":"Message","type":"CustomerEmailTokenCreated","customerId":"cust-1","customerEmail":"user@example.com","expiresAt":"2026-06-10T12:00:00.000Z","value":"token-123"}')
+      .expect(200);
+
+    const listResponse = await request(app)
+      .get('/event-proxy/dev/messages')
+      .set('Authorization', 'Bearer inspect-secret')
+      .expect(200);
+
+    expect(listResponse.body.results).toHaveLength(1);
+    expect(listResponse.body.results[0].body).toMatchObject({
+      type: 'CustomerEmailTokenCreated',
+      value: '[redacted]',
+      customerEmail: 'u***@example.com',
     });
   });
 

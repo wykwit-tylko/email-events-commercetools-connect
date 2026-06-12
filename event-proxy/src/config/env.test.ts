@@ -33,6 +33,25 @@ describe('config', () => {
     expect(config.dryRunForwarding).toBe(false);
     expect(config.devInspectionEnabled).toBe(false);
     expect(config.devInspectionMaxMessages).toBe(100);
+    expect(config.devInspectionToken).toBeUndefined();
+  });
+
+  it('treats an empty dev inspection token as unset', () => {
+    const config = loadAppConfig({
+      OUTBOUND_PUBLISHER_CONFIG: publisherConfig,
+      DEV_INSPECTION_TOKEN: '',
+    });
+
+    expect(config.devInspectionToken).toBeUndefined();
+  });
+
+  it('loads the dev inspection token when set', () => {
+    const config = loadAppConfig({
+      OUTBOUND_PUBLISHER_CONFIG: publisherConfig,
+      DEV_INSPECTION_TOKEN: 'inspect-secret',
+    });
+
+    expect(config.devInspectionToken).toBe('inspect-secret');
   });
 
   it('loads message type filters with de-duplication', () => {

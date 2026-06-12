@@ -1,6 +1,7 @@
 import {
   ctaButton,
   linkFallback,
+  normalizeStoreUrl,
   paragraph,
   renderShelfMarketHtml,
   type RenderedEmail,
@@ -24,7 +25,7 @@ export function renderPasswordResetEmail(
 ): RenderedEmail {
   // The storefront login page picks the token up from this query parameter
   // and shows the "choose a new password" step.
-  const resetUrl = `${storeUrl}/login?reset_token=${encodeURIComponent(notification.value)}`;
+  const resetUrl = `${normalizeStoreUrl(storeUrl)}/login?reset_token=${encodeURIComponent(notification.value)}`;
   const subject = 'Reset your ShelfMarket password';
 
   const bodyHtml = [

@@ -33,6 +33,15 @@ const COLOR = {
   subtle: '#7c7d81',
 } as const;
 
+/**
+ * Strips trailing slashes so `https://x.dev/` + `/orders/...` does not
+ * produce `//orders/...`. All templates run their storeUrl through this
+ * before building links.
+ */
+export function normalizeStoreUrl(storeUrl: string): string {
+  return storeUrl.replace(/\/+$/, '');
+}
+
 export function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -84,7 +93,8 @@ export interface ShelfMarketEmailContent {
   footerNote: string;
 }
 
-export function renderShelfMarketHtml(content: ShelfMarketEmailContent, storeUrl: string): string {
+export function renderShelfMarketHtml(content: ShelfMarketEmailContent, rawStoreUrl: string): string {
+  const storeUrl = normalizeStoreUrl(rawStoreUrl);
   const year = new Date().getFullYear();
   return `<!DOCTYPE html>
 <html>

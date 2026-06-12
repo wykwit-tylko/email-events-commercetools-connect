@@ -2,6 +2,7 @@ import {
   ctaButton,
   escapeHtml,
   linkFallback,
+  normalizeStoreUrl,
   paragraph,
   renderShelfMarketHtml,
   type RenderedEmail,
@@ -29,7 +30,7 @@ export function renderOrderCreatedEmail(
   const orderNumber = notification.order.orderNumber || notification.order.id;
   const subject = `Order ${orderNumber} confirmed`;
   const keySuffix = orderAccessKey ? `?key=${encodeURIComponent(orderAccessKey)}` : '';
-  const orderDetailsUrl = `${storeUrl}/orders/${encodeURIComponent(notification.order.id)}${keySuffix}`;
+  const orderDetailsUrl = `${normalizeStoreUrl(storeUrl)}/orders/${encodeURIComponent(notification.order.id)}${keySuffix}`;
 
   const bodyHtml = [
     paragraph('Hi,'),

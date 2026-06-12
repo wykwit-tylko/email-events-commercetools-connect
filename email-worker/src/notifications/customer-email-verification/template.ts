@@ -2,6 +2,7 @@ import {
   codeBox,
   ctaButton,
   linkFallback,
+  normalizeStoreUrl,
   paragraph,
   renderShelfMarketHtml,
   type RenderedEmail,
@@ -25,7 +26,7 @@ export function renderEmailVerification(
 ): RenderedEmail {
   const subject = 'Your ShelfMarket confirmation code';
 
-  const verifyUrl = `${storeUrl}/login?verify_token=${encodeURIComponent(notification.value)}`;
+  const verifyUrl = `${normalizeStoreUrl(storeUrl)}/login?verify_token=${encodeURIComponent(notification.value)}`;
 
   const bodyHtml = [
     paragraph('Hi,'),

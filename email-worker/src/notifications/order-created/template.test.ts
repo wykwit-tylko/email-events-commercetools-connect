@@ -20,6 +20,22 @@ describe('renderOrderCreatedEmail', () => {
     expect(email.text).toContain('ORD-1');
   });
 
+  it('strips trailing slashes from the store URL when building links', () => {
+    const email = renderOrderCreatedEmail(
+      {
+        notificationType: 'Message',
+        id: 'message-id',
+        type: 'OrderCreated',
+        order: { id: 'order-id', customerEmail: 'customer@example.com', orderNumber: 'ORD-1' },
+      },
+      'https://example.com/',
+    );
+
+    expect(email.html).toContain('https://example.com/orders/order-id');
+    expect(email.html).not.toContain('//orders/');
+    expect(email.text).toContain('https://example.com/orders/order-id');
+  });
+
   it('includes link to order details', () => {
     const email = renderOrderCreatedEmail(
       {

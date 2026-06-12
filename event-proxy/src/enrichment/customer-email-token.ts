@@ -8,7 +8,11 @@ export const customerEmailTokenEnricher: CommerceNotificationEnricher = {
     client: CommercetoolsClient | undefined,
   ): Promise<EnrichmentResult> {
     if (typeof payload.value !== 'string') {
-      return { kind: 'skipped', reason: 'token value absent (check token validity ≤ 60 minutes)' };
+      return {
+        kind: 'skipped',
+        reason: 'token value absent (check token validity ≤ 60 minutes)',
+        retryable: false,
+      };
     }
 
     if (typeof payload.customerEmail === 'string' && payload.customerEmail.length > 0) {
@@ -16,13 +20,23 @@ export const customerEmailTokenEnricher: CommerceNotificationEnricher = {
     }
 
     const customerId = payload.customerId;
-    if (typeof customerId !== 'string' || !client) {
-      return { kind: 'skipped', reason: 'customerId missing or no commercetools client available' };
+    if (typeof customerId !== 'string') {
+      return { kind: 'skipped', reason: 'customerId missing', retryable: false };
+    }
+
+    if (!client) {
+      // Configuration problem, not a payload problem; redelivery can succeed
+      // once the commercetools client is configured.
+      return {
+        kind: 'skipped',
+        reason: 'no commercetools client available',
+        retryable: true,
+      };
     }
 
     const customer = await client.getCustomerById(customerId);
     if (!customer) {
-      return { kind: 'skipped', reason: `customer ${customerId} not found` };
+      return { kind: 'skipped', reason: `customer ${customerId} not found`, retryable: false };
     }
 
     return {

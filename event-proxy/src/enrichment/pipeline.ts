@@ -2,7 +2,9 @@ import type { CommercetoolsClient } from '../infra/commercetools-client.js';
 
 export type EnrichmentResult =
   | { kind: 'enriched'; payload: Record<string, unknown> }
-  | { kind: 'skipped'; reason: string }
+  // retryable: true means the skip is transient (e.g. missing client config)
+  // and the sender should redeliver; false means it can never succeed.
+  | { kind: 'skipped'; reason: string; retryable: boolean }
   | { kind: 'unchanged'; payload: Record<string, unknown> };
 
 export type CommerceNotificationEnricher = {

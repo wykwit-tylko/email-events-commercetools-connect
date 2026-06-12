@@ -2,13 +2,37 @@ import { describe, expect, it } from 'vitest';
 import { customerPasswordTokenEnricher } from './customer-password-token';
 
 describe('customerPasswordTokenEnricher', () => {
-  it('skips when value is absent', async () => {
+  it('skips permanently when value is absent', async () => {
     const result = await customerPasswordTokenEnricher.enrich(
       { type: 'CustomerPasswordTokenCreated', customerId: 'cust-1' },
       undefined,
     );
 
-    expect(result.kind).toBe('skipped');
+    expect(result).toMatchObject({ kind: 'skipped', retryable: false });
+  });
+
+  it('skips retryably when no commercetools client is available', async () => {
+    const result = await customerPasswordTokenEnricher.enrich(
+      { type: 'CustomerPasswordTokenCreated', customerId: 'cust-1', value: 'token-123' },
+      undefined,
+    );
+
+    expect(result).toMatchObject({ kind: 'skipped', retryable: true });
+  });
+
+  it('skips permanently when customer fetch returns undefined', async () => {
+    const client = {
+      async getCustomerById() {
+        return undefined;
+      },
+    };
+
+    const result = await customerPasswordTokenEnricher.enrich(
+      { type: 'CustomerPasswordTokenCreated', customerId: 'cust-1', value: 'token-123' },
+      client as any,
+    );
+
+    expect(result).toMatchObject({ kind: 'skipped', retryable: false });
   });
 
   it('passes through when customerEmail already present', async () => {

@@ -38,13 +38,13 @@ describe('enrichCommerceNotification', () => {
     const testEnricher: CommerceNotificationEnricher = {
       messageType: 'TestMessage',
       async enrich() {
-        return { kind: 'skipped', reason: 'test reason' };
+        return { kind: 'skipped', reason: 'test reason', retryable: false };
       },
     };
 
     const payload = { type: 'TestMessage' };
     const result = await enrichCommerceNotification(payload, undefined, [testEnricher]);
 
-    expect(result).toEqual({ kind: 'skipped', reason: 'test reason' });
+    expect(result).toEqual({ kind: 'skipped', reason: 'test reason', retryable: false });
   });
 });

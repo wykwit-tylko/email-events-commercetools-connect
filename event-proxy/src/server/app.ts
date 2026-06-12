@@ -88,7 +88,21 @@ export function createApp(options: {
       );
 
       if (enrichmentResult.kind === 'skipped') {
-        options.logger.info('commerce notification skipped: enrichment failed', {
+        if (enrichmentResult.retryable) {
+          // Transient (e.g. commercetools client not configured): tell
+          // Connect to redeliver instead of dropping the notification.
+          options.logger.warn('commerce notification enrichment unavailable, requesting retry', {
+            messageType: queuePayload.type,
+            reason: enrichmentResult.reason,
+            requestBytes: rawBody.length,
+            durationMs: Date.now() - startedAt,
+          });
+          response.status(503).send('Commerce Notification enrichment unavailable');
+          return;
+        }
+
+        // Permanently unrecoverable; acknowledge so Connect stops retrying.
+        options.logger.warn('commerce notification skipped: enrichment failed', {
           messageType: queuePayload.type,
           reason: enrichmentResult.reason,
           requestBytes: rawBody.length,

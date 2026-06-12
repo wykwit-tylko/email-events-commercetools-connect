@@ -2,13 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { customerEmailTokenEnricher } from './customer-email-token';
 
 describe('customerEmailTokenEnricher', () => {
-  it('skips when value is absent', async () => {
+  it('skips permanently when value is absent', async () => {
     const result = await customerEmailTokenEnricher.enrich(
       { type: 'CustomerEmailTokenCreated', customerId: 'cust-1' },
       undefined,
     );
 
-    expect(result.kind).toBe('skipped');
+    expect(result).toMatchObject({ kind: 'skipped', retryable: false });
+  });
+
+  it('skips retryably when no commercetools client is available', async () => {
+    const result = await customerEmailTokenEnricher.enrich(
+      { type: 'CustomerEmailTokenCreated', customerId: 'cust-1', value: 'token-123' },
+      undefined,
+    );
+
+    expect(result).toMatchObject({ kind: 'skipped', retryable: true });
   });
 
   it('passes through when customerEmail already present', async () => {
@@ -43,7 +52,7 @@ describe('customerEmailTokenEnricher', () => {
     expect((result as any).payload.value).toBe('token-123');
   });
 
-  it('skips when customer fetch returns undefined', async () => {
+  it('skips permanently when customer fetch returns undefined', async () => {
     const client = {
       async getCustomerById() {
         return undefined;
@@ -57,6 +66,6 @@ describe('customerEmailTokenEnricher', () => {
     };
     const result = await customerEmailTokenEnricher.enrich(payload, client as any);
 
-    expect(result.kind).toBe('skipped');
+    expect(result).toMatchObject({ kind: 'skipped', retryable: false });
   });
 });

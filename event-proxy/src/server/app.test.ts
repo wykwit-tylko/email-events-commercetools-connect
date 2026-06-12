@@ -283,12 +283,44 @@ describe('event proxy app', () => {
     expect(publisher.published).toHaveLength(0);
   });
 
-  it('skips token messages when customerEmail is missing and no commercetools client', async () => {
+  it('returns 503 for token messages needing enrichment when no commercetools client is configured', async () => {
     const publisher = new FakePublisher();
+    const logger = createSilentLogger();
     const app = createApp({
       config: baseConfig,
       publisher,
-      logger: createSilentLogger(),
+      logger,
+    });
+
+    await request(app)
+      .post('/event-proxy')
+      .set('Content-Type', 'application/json')
+      .send('{"notificationType":"Message","type":"CustomerEmailTokenCreated","customerId":"cust-1","expiresAt":"2026-06-10T12:00:00.000Z","value":"token-123"}')
+      .expect(503);
+
+    expect(publisher.published).toHaveLength(0);
+    expect(logger.entries).toContainEqual({
+      level: 'warn',
+      message: 'commerce notification enrichment unavailable, requesting retry',
+      fields: expect.objectContaining({
+        messageType: 'CustomerEmailTokenCreated',
+        reason: 'no commercetools client available',
+      }),
+    });
+  });
+
+  it('returns 200 and warns when the customer is not found', async () => {
+    const publisher = new FakePublisher();
+    const logger = createSilentLogger();
+    const app = createApp({
+      config: baseConfig,
+      publisher,
+      logger,
+      commercetoolsClient: {
+        async getCustomerById() {
+          return undefined;
+        },
+      } as any,
     });
 
     await request(app)
@@ -298,6 +330,14 @@ describe('event proxy app', () => {
       .expect(200);
 
     expect(publisher.published).toHaveLength(0);
+    expect(logger.entries).toContainEqual({
+      level: 'warn',
+      message: 'commerce notification skipped: enrichment failed',
+      fields: expect.objectContaining({
+        messageType: 'CustomerEmailTokenCreated',
+        reason: 'customer cust-1 not found',
+      }),
+    });
   });
 
   it('forwards token messages with both value and customerEmail', async () => {

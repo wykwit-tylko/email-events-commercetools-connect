@@ -115,8 +115,8 @@ describe('handleQueue', () => {
     expect(message.acked).toBe(true);
     expect(env.sentEmails).toHaveLength(1);
     expect(env.sentEmails[0]?.to).toBe('newuser@example.com');
-    expect(env.sentEmails[0]?.subject).toBe('Verify your email address');
-    expect(env.sentEmails[0]?.html).toContain('verify-email?token=verify-token-123');
+    expect(env.sentEmails[0]?.subject).toBe('Your ShelfMarket confirmation code');
+    expect(env.sentEmails[0]?.html).toContain('verify-token-123');
     await expect(env.EMAIL_DEDUPE.get('sent:email-token-id')).resolves.not.toBeNull();
     await expect(getStats(env)).resolves.toMatchObject({
       processed: 1,
@@ -141,8 +141,8 @@ describe('handleQueue', () => {
     expect(message.acked).toBe(true);
     expect(env.sentEmails).toHaveLength(1);
     expect(env.sentEmails[0]?.to).toBe('user@example.com');
-    expect(env.sentEmails[0]?.subject).toBe('Reset your password');
-    expect(env.sentEmails[0]?.html).toContain('reset-password?token=reset-token-456');
+    expect(env.sentEmails[0]?.subject).toBe('Reset your ShelfMarket password');
+    expect(env.sentEmails[0]?.html).toContain('login?reset_token=reset-token-456');
     await expect(env.EMAIL_DEDUPE.get('sent:password-token-id')).resolves.not.toBeNull();
     await expect(getStats(env)).resolves.toMatchObject({
       processed: 1,

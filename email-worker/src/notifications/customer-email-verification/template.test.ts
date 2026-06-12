@@ -16,6 +16,8 @@ describe('renderEmailVerification', () => {
     expect(email.subject).toBe('Your ShelfMarket confirmation code');
     expect(email.html).toContain('verify-token-123');
     expect(email.text).toContain('verify-token-123');
+    expect(email.html).toContain('login?verify_token=verify-token-123');
+    expect(email.text).toContain('login?verify_token=verify-token-123');
     expect(email.html).toContain('Confirm your email');
     expect(email.html).toContain('This email was sent to user@example.com.');
   });

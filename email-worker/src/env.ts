@@ -5,6 +5,8 @@ export type Env = {
   FROM_EMAIL: string;
   DEDUPE_TTL_SECONDS: string;
   STORE_URL: string;
+  /** Shared secret with the storefront for guest order link keys; links omit the key when unset. */
+  ORDER_LINK_SECRET?: string;
 };
 
 export type EmailBinding = {

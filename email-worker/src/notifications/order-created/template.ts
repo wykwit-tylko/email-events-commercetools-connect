@@ -23,10 +23,13 @@ export type OrderCreatedNotification = {
 export function renderOrderCreatedEmail(
   notification: OrderCreatedNotification,
   storeUrl: string,
+  /** Guest access key; lets the recipient view the order without logging in. */
+  orderAccessKey?: string,
 ): RenderedEmail {
   const orderNumber = notification.order.orderNumber || notification.order.id;
   const subject = `Order ${orderNumber} confirmed`;
-  const orderDetailsUrl = `${storeUrl}/orders/${encodeURIComponent(notification.order.id)}`;
+  const keySuffix = orderAccessKey ? `?key=${encodeURIComponent(orderAccessKey)}` : '';
+  const orderDetailsUrl = `${storeUrl}/orders/${encodeURIComponent(notification.order.id)}${keySuffix}`;
 
   const bodyHtml = [
     paragraph('Hi,'),

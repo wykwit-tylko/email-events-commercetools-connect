@@ -35,6 +35,22 @@ describe('renderOrderCreatedEmail', () => {
     expect(email.text).toContain('https://example.com/orders/order-id');
   });
 
+  it('appends the guest access key to the order link when provided', () => {
+    const email = renderOrderCreatedEmail(
+      {
+        notificationType: 'Message',
+        id: 'message-id',
+        type: 'OrderCreated',
+        order: { id: 'order-id', customerEmail: 'customer@example.com', orderNumber: 'ORD-1' },
+      },
+      storeUrl,
+      'abc123key',
+    );
+
+    expect(email.html).toContain('https://example.com/orders/order-id?key=abc123key');
+    expect(email.text).toContain('https://example.com/orders/order-id?key=abc123key');
+  });
+
   it('escapes order number in html', () => {
     const email = renderOrderCreatedEmail(
       {

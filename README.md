@@ -175,6 +175,7 @@ The `connector:post-deploy` hook automatically creates the commercetools Subscri
    - `EMAIL_DEDUPE` — KV namespace for deduplication
    - `FROM_EMAIL` — sender address
    - `STORE_URL` — storefront URL for links (e.g. `https://shelfmarket.tylko.dev`)
+   - `ORDER_LINK_SECRET` — shared with the storefront, signs guest order links in order confirmation emails (links omit the key when unset)
 
 ### Deployment Order
 

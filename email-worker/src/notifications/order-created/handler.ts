@@ -1,6 +1,7 @@
 import { markSent, wasAlreadySent } from '../../dedupe/kv-dedupe-store';
 import { emailSendingEnabled, type CommerceNotification, type Env } from '../../env';
 import { errorFields, logger } from '../../shared/logger';
+import { hmacSha256Hex } from '../../shared/hmac';
 import { incrementStats } from '../../stats/counters';
 import {
   renderOrderCreatedEmail,
@@ -70,7 +71,10 @@ export async function handleOrderCreated(
   });
 
   try {
-    const email = renderOrderCreatedEmail(notification, env.STORE_URL);
+    const orderAccessKey = env.ORDER_LINK_SECRET
+      ? await hmacSha256Hex(env.ORDER_LINK_SECRET, notification.order.id)
+      : undefined;
+    const email = renderOrderCreatedEmail(notification, env.STORE_URL, orderAccessKey);
     logger.info('email-worker calling email binding', {
       to: notification.order.customerEmail,
       from: env.FROM_EMAIL,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderEmailVerification } from './template';
 
 describe('renderEmailVerification', () => {
-  it('renders verification email with correct link', () => {
+  it('renders the confirmation code for the registration screen', () => {
     const email = renderEmailVerification({
       notificationType: 'Message',
       id: 'msg-id',
@@ -13,11 +13,11 @@ describe('renderEmailVerification', () => {
       value: 'verify-token-123',
     }, 'https://shelfmarket.tylko.dev');
 
-    expect(email.subject).toBe('Verify your email address');
-    expect(email.html).toContain('verify-email?token=verify-token-123');
-    expect(email.html).toContain('email=user%40example.com');
-    expect(email.text).toContain('verify-email?token=verify-token-123');
-    expect(email.html).toContain('Welcome! Please verify your email');
+    expect(email.subject).toBe('Your ShelfMarket confirmation code');
+    expect(email.html).toContain('verify-token-123');
+    expect(email.text).toContain('verify-token-123');
+    expect(email.html).toContain('Confirm your email');
+    expect(email.html).toContain('This email was sent to user@example.com.');
   });
 
   it('escapes HTML in token and email', () => {

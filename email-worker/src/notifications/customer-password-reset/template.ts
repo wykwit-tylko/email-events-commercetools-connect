@@ -1,8 +1,12 @@
-export type RenderedEmail = {
-  subject: string;
-  html: string;
-  text: string;
-};
+import {
+  ctaButton,
+  linkFallback,
+  paragraph,
+  renderShelfMarketHtml,
+  type RenderedEmail,
+} from '../../templates/layout';
+
+export type { RenderedEmail };
 
 export type CustomerPasswordTokenCreatedNotification = {
   notificationType: 'Message';
@@ -18,51 +22,34 @@ export function renderPasswordResetEmail(
   notification: CustomerPasswordTokenCreatedNotification,
   storeUrl: string,
 ): RenderedEmail {
-  const resetUrl = `${storeUrl}/reset-password?token=${encodeURIComponent(notification.value)}&email=${encodeURIComponent(notification.customerEmail)}`;
-  const subject = 'Reset your password';
+  // The storefront login page picks the token up from this query parameter
+  // and shows the "choose a new password" step.
+  const resetUrl = `${storeUrl}/login?reset_token=${encodeURIComponent(notification.value)}`;
+  const subject = 'Reset your ShelfMarket password';
+
+  const bodyHtml = [
+    paragraph('Hi,'),
+    paragraph(
+      'We received a request to reset the password for your ShelfMarket account. Choose a new password using the button below:',
+    ),
+    ctaButton('Reset password', resetUrl),
+    linkFallback(resetUrl),
+    paragraph(
+      "The link stays valid for about an hour and only the most recent link works. If you didn't request a password reset, you can safely ignore this email.",
+    ),
+  ].join('\n');
 
   return {
     subject,
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-            .container { max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; }
-            h1 { color: #333; font-size: 24px; }
-            p { color: #666; line-height: 1.6; }
-            .button { display: inline-block; padding: 12px 24px; background: #dc3545; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
-            .link { color: #dc3545; word-break: break-all; }
-            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>Reset your password</h1>
-            <p>Hi,</p>
-            <p>We received a request to reset your password. Click the button below to create a new password:</p>
-            <a href="${escapeHtml(resetUrl)}" class="button">Reset Password</a>
-            <p>Or copy and paste this link into your browser:</p>
-            <p class="link">${escapeHtml(resetUrl)}</p>
-            <p>This link will expire soon. If you didn't request a password reset, you can safely ignore this email.</p>
-            <div class="footer">
-              <p>This email was sent to ${escapeHtml(notification.customerEmail)}.</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `,
-    text: `Reset your password\n\nHi,\n\nWe received a request to reset your password. Please visit this link to create a new password:\n\n${resetUrl}\n\nThis link will expire soon. If you didn't request a password reset, you can safely ignore this email.`,
+    html: renderShelfMarketHtml(
+      {
+        eyebrow: 'Account',
+        title: 'Reset your password.',
+        bodyHtml,
+        footerNote: `This email was sent to ${notification.customerEmail}.`,
+      },
+      storeUrl,
+    ),
+    text: `Reset your password\n\nHi,\n\nWe received a request to reset the password for your ShelfMarket account. Open this link to choose a new password:\n\n${resetUrl}\n\nThe link stays valid for about an hour and only the most recent link works. If you didn't request a password reset, you can safely ignore this email.`,
   };
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
 }

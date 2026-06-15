@@ -25,7 +25,7 @@ The inner Commerce Notification is parsed as JSON and published through the conf
 
 ## Configuration
 
-See `event-proxy/.env.example` for all variables.
+See `event-proxy/.env.example` for all Event Proxy variables and `email-worker/wrangler.example.toml` for Worker bindings. See `docs/deployment.md` for Cloudflare setup and deployment steps.
 
 ## Project Structure
 
@@ -38,8 +38,9 @@ See `event-proxy/.env.example` for all variables.
 │   ├── package.json
 │   └── src/
 │       ├── config/    # environment parsing and defaults
-│       ├── infra/     # email-worker and commercetools API integrations
-│       ├── scripts/   # local subscriber and Connect lifecycle scripts
+│       ├── enrichment/ # proxy enrichment for selected Commerce Notifications
+│       ├── infra/     # outbound publisher and commercetools API integrations
+│       ├── scripts/   # Connect lifecycle scripts
 │       ├── server/    # HTTP event endpoint and raw body handling
 │       ├── shared/    # logging and small shared utilities
 │       ├── test/      # test fixtures and fakes
@@ -47,7 +48,7 @@ See `event-proxy/.env.example` for all variables.
 └── email-worker/      # Cloudflare Worker for queueing and sending emails
 ```
 
-Required runtime variables:
+Required Event Proxy runtime variables:
 
 - `OUTBOUND_PUBLISHER_CONFIG`
 
@@ -58,12 +59,13 @@ Common optional runtime variables:
 - `DRY_RUN_FORWARDING`, default `false`
 - `DEV_INSPECTION_ENABLED`, default `false`
 - `DEV_INSPECTION_MAX_MESSAGES`, default `100`
+- `DEV_INSPECTION_TOKEN`, required for development inspection endpoints to be reachable
 - `PORT`, default `8080`
 - `CT_MESSAGE_TYPES`, default empty, meaning all Commerce Notification message types are forwarded
 
 commercetools deployment credentials:
 
-- `connect.yaml` uses `inheritAs.apiClient.scopes` with `manage_subscriptions`.
+- `connect.yaml` uses `inheritAs.apiClient.scopes` with `manage_subscriptions` and `manage_customers`.
 - Connect automatically provides `CTP_API_URL`, `CTP_AUTH_URL`, `CTP_PROJECT_KEY`, `CTP_CLIENT_ID`, `CTP_CLIENT_SECRET`, and `CTP_SCOPE` at runtime.
 - For local script testing outside Connect, provide either `CTP_API_URL` and `CTP_AUTH_URL`, or provide `CTP_REGION` so the app can derive them.
 
@@ -89,7 +91,11 @@ Start the app in dry-run inspection mode:
 
 ```bash
 cd event-proxy
-OUTBOUND_PUBLISHER_CONFIG='{"type":"cloudflare-queue","accountId":"local","queueId":"local","apiToken":"local"}' DRY_RUN_FORWARDING=true DEV_INSPECTION_ENABLED=true npm run dev
+OUTBOUND_PUBLISHER_CONFIG='{"type":"cloudflare-queue","accountId":"local","queueId":"local","apiToken":"local"}' \
+DRY_RUN_FORWARDING=true \
+DEV_INSPECTION_ENABLED=true \
+DEV_INSPECTION_TOKEN=change-me-inspection-token \
+npm run dev
 ```
 
 Post a sample Platform Commerce Notification:
@@ -103,7 +109,8 @@ curl -X POST http://localhost:8080/event-proxy \
 Inspect dry-run messages:
 
 ```bash
-curl http://localhost:8080/event-proxy/dev/messages
+curl -H 'Authorization: Bearer change-me-inspection-token' \
+  http://localhost:8080/event-proxy/dev/messages
 ```
 
 ### Email Worker
@@ -130,9 +137,24 @@ EMAIL_SENDING_ENABLED=false npm run dev
 
 ## Deployment
 
+See `docs/deployment.md` for the full Cloudflare and commercetools setup checklist.
+
+### Basic Cloudflare Setup
+
+Create the queue, dead-letter queue, and KV namespace before deploying the Worker:
+
+```bash
+cd email-worker
+npx wrangler queues create commerce-notifications-email-dev
+npx wrangler queues create email-events-dlq
+npx wrangler kv namespace create EMAIL_DEDUPE
+```
+
+Then copy `email-worker/wrangler.example.toml` to `email-worker/wrangler.toml`, set the queue name and KV namespace ID, configure Cloudflare Email Sending for the sender domain, and set production secrets with `wrangler secret put` rather than committing them in `wrangler.toml`.
+
 ### Event Proxy (commercetools Connect)
 
-The deploy script automates staging, publishing, and configuration generation. Deployment creation itself may require additional Connect permissions.
+The deploy script automates staging, publishing, and deployment update/create where the API client has sufficient Connect permissions.
 
 ```bash
 cd event-proxy
@@ -146,12 +168,13 @@ The deploy script:
 3. Validates prerequisites (commercetools CLI installed, credentials present)
 4. Authenticates and stages the connector from the latest git tag
 5. Publishes the staged connector
-6. Generates base64-encoded `--configuration` flags for all comma-containing values
+6. Updates an existing deployment when possible, otherwise creates a new deployment
+7. Generates base64-encoded configuration values for comma-containing values
 
 **How comma-containing configs work:**
 The commercetools CLI `--configuration` flag splits values on commas. The deploy script transparently **base64-encodes** them with a `b64:` prefix. The event-proxy app detects and decodes them at startup.
 
-**Known limitation:** The script stages and publishes the connector successfully, but `commercetools connect deployment create` may return "Access denied" depending on your API client's Connect permissions. If this happens:
+**Known limitation:** `commercetools connect deployment create` or update can return "Access denied" depending on your API client's Connect permissions. If this happens:
 - Use the generated `--configuration` flags from the dry-run output
 - Create the deployment manually via the Merchant Center Connect UI
 - Or ensure your CLI API client has Connect deployment management scopes
@@ -179,9 +202,10 @@ The `connector:post-deploy` hook automatically creates the commercetools Subscri
 
 ### Deployment Order
 
-1. Deploy the **Email Worker** first so the Cloudflare Queue exists.
-2. Deploy the **Event Proxy** with `OUTBOUND_PUBLISHER_CONFIG` pointing to the Worker queue.
-3. The proxy's `postDeploy` hook creates the commercetools Subscription.
+1. Create the Cloudflare Queue, DLQ, KV namespace, Email Sending binding, and Worker config.
+2. Deploy the **Email Worker** first so the Cloudflare Queue consumer exists.
+3. Deploy the **Event Proxy** with `OUTBOUND_PUBLISHER_CONFIG` pointing to the Worker queue.
+4. The proxy's `postDeploy` hook creates the commercetools Subscription.
 
 ## Scripts
 

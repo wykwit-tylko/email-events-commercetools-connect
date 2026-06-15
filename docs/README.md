@@ -1,12 +1,6 @@
 # Documentation
 
-- [Follow-up tasks](./follow-up-tasks.md)
-
-## Plans
-
-- [Event Proxy MVP](./plans/event-proxy-mvp.md)
-- [Cloudflare Email Worker follow-up](./plans/cloudflare-email-worker.md)
-- [Notification Handlers](./plans/notification-handlers.md)
+- [Deployment](./deployment.md)
 
 ## ADRs
 

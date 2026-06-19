@@ -21,11 +21,11 @@ The proxy fetching missing fields from the commercetools API and injecting them 
 _Avoid_: Normalization, transformation, message augmentation
 
 **Outbound Publisher**:
-The adapter that forwards Commerce Notifications to the queue boundary. Currently only `cloudflare-queue` is supported. The proxy does not interpret the notification when forwarding; it only adapts to the queue's format requirements.
+The adapter that forwards Commerce Notifications to the outbound boundary. Supported types are `cloudflare-queue` and `http-webhook` (signed POST to an HTTP endpoint). The proxy does not interpret the notification when forwarding; it only adapts to the boundary's format requirements. When more than one is configured, a Composite Publisher fans every notification out to all of them in parallel.
 _Avoid_: Publisher adapter, queue driver, forwarder
 
 **Publisher Config**:
-The JSON configuration that specifies how the Outbound Publisher connects to the queue (account ID, queue ID, API token). Set via `OUTBOUND_PUBLISHER_CONFIG` or auto-constructed from `CF_*` environment variables by the deploy script.
+The JSON configuration that specifies how an Outbound Publisher connects to its boundary (e.g. account ID, queue ID, API token for `cloudflare-queue`; endpoint URL and `emailEventSecret` for `http-webhook`). `OUTBOUND_PUBLISHER_CONFIG` holds a single object or an array for fan-out, or is auto-constructed from `CF_*` environment variables by the deploy script.
 _Avoid_: Queue credentials, broker config
 
 **Message Type Filter**:

@@ -6,12 +6,9 @@
  *
  * The input is deep-cloned; the original payload is never mutated.
  */
-export function redactInspectionBody(
-  body: Record<string, unknown>,
-): Record<string, unknown> {
+export function redactInspectionBody(body: Record<string, unknown>): Record<string, unknown> {
   const clone = structuredClone(body);
-  const isTokenNotification =
-    typeof clone.type === 'string' && clone.type.includes('Token');
+  const isTokenNotification = typeof clone.type === "string" && clone.type.includes("Token");
 
   redactInPlace(clone, isTokenNotification);
 
@@ -26,22 +23,19 @@ function redactInPlace(node: unknown, redactValueFields: boolean): void {
     return;
   }
 
-  if (node === null || typeof node !== 'object') {
+  if (node === null || typeof node !== "object") {
     return;
   }
 
   const record = node as Record<string, unknown>;
 
   for (const [key, value] of Object.entries(record)) {
-    if (redactValueFields && key === 'value' && typeof value === 'string') {
-      record[key] = '[redacted]';
+    if (redactValueFields && key === "value" && typeof value === "string") {
+      record[key] = "[redacted]";
       continue;
     }
 
-    if (
-      (key === 'customerEmail' || key === 'email') &&
-      typeof value === 'string'
-    ) {
+    if ((key === "customerEmail" || key === "email") && typeof value === "string") {
       record[key] = maskEmail(value);
       continue;
     }
@@ -51,10 +45,10 @@ function redactInPlace(node: unknown, redactValueFields: boolean): void {
 }
 
 function maskEmail(email: string): string {
-  const atIndex = email.indexOf('@');
+  const atIndex = email.indexOf("@");
 
   if (atIndex <= 0) {
-    return '***';
+    return "***";
   }
 
   return `${email[0]}***${email.slice(atIndex)}`;

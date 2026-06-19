@@ -6,7 +6,7 @@ export type ExtractedBody = {
 export class DecodedPayloadTooLargeError extends Error {
   constructor(limit: number) {
     super(`Decoded Commerce Notification exceeds MAX_BODY_BYTES (${limit})`);
-    this.name = 'DecodedPayloadTooLargeError';
+    this.name = "DecodedPayloadTooLargeError";
   }
 }
 
@@ -18,11 +18,11 @@ export function extractCommerceNotificationBody(options: {
 }): ExtractedBody {
   const destination = options.connectSubscriptionDestination;
 
-  if (destination === 'GoogleCloudPubSub') {
+  if (destination === "GoogleCloudPubSub") {
     return decodeGoogleCloudPubSubEnvelope(options);
   }
 
-  if (destination === 'SNS') {
+  if (destination === "SNS") {
     return decodeSnsEnvelope(options);
   }
 
@@ -48,7 +48,7 @@ function decodeGoogleCloudPubSubEnvelope(options: {
 }): ExtractedBody {
   const decoded = tryDecodeGoogleCloudPubSubEnvelope(options);
   if (!decoded) {
-    throw new Error('Expected Google Cloud Pub/Sub push envelope');
+    throw new Error("Expected Google Cloud Pub/Sub push envelope");
   }
   return decoded;
 }
@@ -60,26 +60,23 @@ function tryDecodeGoogleCloudPubSubEnvelope(options: {
   const envelope = parseJsonObject(options.rawBody);
   const data = envelope?.message?.data;
 
-  if (typeof data !== 'string') {
+  if (typeof data !== "string") {
     return undefined;
   }
 
-  const body = Buffer.from(data, 'base64');
+  const body = Buffer.from(data, "base64");
   assertDecodedBodySize(body, options.maxBodyBytes);
 
   return {
     body,
-    contentType: 'application/json',
+    contentType: "application/json",
   };
 }
 
-function decodeSnsEnvelope(options: {
-  rawBody: Buffer;
-  maxBodyBytes: number;
-}): ExtractedBody {
+function decodeSnsEnvelope(options: { rawBody: Buffer; maxBodyBytes: number }): ExtractedBody {
   const decoded = tryDecodeSnsEnvelope(options);
   if (!decoded) {
-    throw new Error('Expected AWS SNS envelope');
+    throw new Error("Expected AWS SNS envelope");
   }
   return decoded;
 }
@@ -91,7 +88,7 @@ function tryDecodeSnsEnvelope(options: {
   const envelope = parseJsonObject(options.rawBody);
   const message = envelope?.Message;
 
-  if (typeof message !== 'string') {
+  if (typeof message !== "string") {
     return undefined;
   }
 
@@ -100,14 +97,14 @@ function tryDecodeSnsEnvelope(options: {
 
   return {
     body,
-    contentType: 'application/json',
+    contentType: "application/json",
   };
 }
 
 function parseJsonObject(body: Buffer): any | undefined {
   try {
-    const parsed = JSON.parse(body.toString('utf8'));
-    return parsed && typeof parsed === 'object' ? parsed : undefined;
+    const parsed = JSON.parse(body.toString("utf8"));
+    return parsed && typeof parsed === "object" ? parsed : undefined;
   } catch {
     return undefined;
   }

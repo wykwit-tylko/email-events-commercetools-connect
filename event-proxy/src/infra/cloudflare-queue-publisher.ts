@@ -1,7 +1,7 @@
 import type {
   CommerceNotificationPublisher,
   PublishOptions,
-} from './commerce-notification-publisher.js';
+} from "./commerce-notification-publisher.js";
 
 export class CloudflareQueuePublisher implements CommerceNotificationPublisher {
   private readonly endpointUrl: string;
@@ -19,20 +19,17 @@ export class CloudflareQueuePublisher implements CommerceNotificationPublisher {
 
   async publish(payload: unknown, options: PublishOptions = {}): Promise<void> {
     const abortController = new AbortController();
-    const timeout = setTimeout(
-      () => abortController.abort(),
-      this.options.timeoutMs,
-    );
+    const timeout = setTimeout(() => abortController.abort(), this.options.timeoutMs);
 
     try {
       const response = await fetch(this.endpointUrl, {
-        method: 'POST',
+        method: "POST",
         headers: {
           Authorization: `Bearer ${this.options.apiToken}`,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          content_type: 'json',
+          content_type: "json",
           body: payload,
         }),
         signal: abortController.signal,
@@ -40,14 +37,12 @@ export class CloudflareQueuePublisher implements CommerceNotificationPublisher {
 
       if (!response.ok) {
         const responseBody = await response.text();
-        throw new Error(
-          `Cloudflare Queue publish failed with ${response.status}: ${responseBody}`,
-        );
+        throw new Error(`Cloudflare Queue publish failed with ${response.status}: ${responseBody}`);
       }
 
       const result = (await response.json()) as { success?: boolean };
       if (result.success !== true) {
-        throw new Error('Cloudflare Queue publish response did not indicate success');
+        throw new Error("Cloudflare Queue publish response did not indicate success");
       }
     } finally {
       clearTimeout(timeout);

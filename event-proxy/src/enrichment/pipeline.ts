@@ -1,11 +1,11 @@
-import type { CommercetoolsClient } from '../infra/commercetools-client.js';
+import type { CommercetoolsClient } from "../infra/commercetools-client.js";
 
 export type EnrichmentResult =
-  | { kind: 'enriched'; payload: Record<string, unknown> }
+  | { kind: "enriched"; payload: Record<string, unknown> }
   // retryable: true means the skip is transient (e.g. missing client config)
   // and the sender should redeliver; false means it can never succeed.
-  | { kind: 'skipped'; reason: string; retryable: boolean }
-  | { kind: 'unchanged'; payload: Record<string, unknown> };
+  | { kind: "skipped"; reason: string; retryable: boolean }
+  | { kind: "unchanged"; payload: Record<string, unknown> };
 
 export type CommerceNotificationEnricher = {
   messageType: string;
@@ -22,14 +22,14 @@ export async function enrichCommerceNotification(
 ): Promise<EnrichmentResult> {
   const messageType = payload.type;
 
-  if (typeof messageType !== 'string') {
-    return { kind: 'unchanged', payload };
+  if (typeof messageType !== "string") {
+    return { kind: "unchanged", payload };
   }
 
   const enricher = enrichers.find((e) => e.messageType === messageType);
 
   if (!enricher) {
-    return { kind: 'unchanged', payload };
+    return { kind: "unchanged", payload };
   }
 
   return enricher.enrich(payload, client);

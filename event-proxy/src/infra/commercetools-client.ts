@@ -1,15 +1,15 @@
-import type { CtpConfig, DeliveryFormat, SubscriptionConfig } from '../config/env.js';
+import type { CtpConfig, DeliveryFormat, SubscriptionConfig } from "../config/env.js";
 
 export type Destination =
   | {
-      type: 'GoogleCloudPubSub';
+      type: "GoogleCloudPubSub";
       projectId: string;
       topic: string;
     }
   | {
-      type: 'SNS';
+      type: "SNS";
       topicArn: string;
-      authenticationMode: 'IAM';
+      authenticationMode: "IAM";
     };
 
 export type MessageSubscription = {
@@ -50,8 +50,8 @@ export class CommercetoolsClient {
   }
 
   async createSubscription(draft: SubscriptionDraft): Promise<Subscription> {
-    const response = await this.request('/subscriptions', {
-      method: 'POST',
+    const response = await this.request("/subscriptions", {
+      method: "POST",
       body: JSON.stringify(draft),
     });
 
@@ -64,36 +64,30 @@ export class CommercetoolsClient {
     destination: Destination;
     messages: MessageSubscription[];
   }): Promise<Subscription> {
-    const response = await this.request(
-      `/subscriptions/key=${encodeURIComponent(options.key)}`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          version: options.version,
-          actions: [
-            {
-              action: 'changeDestination',
-              destination: options.destination,
-            },
-            {
-              action: 'setMessages',
-              messages: options.messages,
-            },
-          ],
-        }),
-      },
-    );
+    const response = await this.request(`/subscriptions/key=${encodeURIComponent(options.key)}`, {
+      method: "POST",
+      body: JSON.stringify({
+        version: options.version,
+        actions: [
+          {
+            action: "changeDestination",
+            destination: options.destination,
+          },
+          {
+            action: "setMessages",
+            messages: options.messages,
+          },
+        ],
+      }),
+    });
 
     return this.parseJsonResponse<Subscription>(response);
   }
 
-  async deleteSubscription(options: {
-    key: string;
-    version: number;
-  }): Promise<void> {
+  async deleteSubscription(options: { key: string; version: number }): Promise<void> {
     await this.request(
       `/subscriptions/key=${encodeURIComponent(options.key)}?version=${options.version}`,
-      { method: 'DELETE' },
+      { method: "DELETE" },
     );
   }
 
@@ -112,28 +106,20 @@ export class CommercetoolsClient {
     return { email: customer.email };
   }
 
-  private async request(
-    path: string,
-    options: RequestInit = {},
-  ): Promise<Response> {
+  private async request(path: string, options: RequestInit = {}): Promise<Response> {
     const token = await this.getToken();
-    const response = await fetch(
-      `${this.config.ctpApiUrl}/${this.config.ctpProjectKey}${path}`,
-      {
-        ...options,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          ...(options.headers || {}),
-        },
+    const response = await fetch(`${this.config.ctpApiUrl}/${this.config.ctpProjectKey}${path}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
       },
-    );
+    });
 
     if (!response.ok && response.status !== 404) {
       const body = await response.text();
-      throw new Error(
-        `commercetools API request failed with ${response.status}: ${body}`,
-      );
+      throw new Error(`commercetools API request failed with ${response.status}: ${body}`);
     }
 
     return response;
@@ -146,33 +132,28 @@ export class CommercetoolsClient {
 
     const credentials = Buffer.from(
       `${this.config.ctpClientId}:${this.config.ctpClientSecret}`,
-    ).toString('base64');
+    ).toString("base64");
 
-    const response = await fetch(
-      `${this.config.ctpAuthUrl}/oauth/token`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${credentials}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          grant_type: 'client_credentials',
-          scope: this.config.ctpScope,
-        }),
+    const response = await fetch(`${this.config.ctpAuthUrl}/oauth/token`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-    );
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        scope: this.config.ctpScope,
+      }),
+    });
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(
-        `commercetools auth request failed with ${response.status}: ${body}`,
-      );
+      throw new Error(`commercetools auth request failed with ${response.status}: ${body}`);
     }
 
     const tokenResponse = (await response.json()) as { access_token?: string };
     if (!tokenResponse.access_token) {
-      throw new Error('commercetools auth response did not contain access_token');
+      throw new Error("commercetools auth response did not contain access_token");
     }
 
     this.token = tokenResponse.access_token;
@@ -182,9 +163,7 @@ export class CommercetoolsClient {
   private async parseJsonResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(
-        `commercetools API request failed with ${response.status}: ${body}`,
-      );
+      throw new Error(`commercetools API request failed with ${response.status}: ${body}`);
     }
 
     return (await response.json()) as T;
@@ -192,31 +171,31 @@ export class CommercetoolsClient {
 }
 
 export function buildDestination(config: SubscriptionConfig): Destination {
-  const destination = config.connectSubscriptionDestination || 'GoogleCloudPubSub';
+  const destination = config.connectSubscriptionDestination || "GoogleCloudPubSub";
 
-  if (destination === 'GoogleCloudPubSub') {
+  if (destination === "GoogleCloudPubSub") {
     if (!config.connectGcpProjectId || !config.connectGcpTopicName) {
       throw new Error(
-        'CONNECT_GCP_PROJECT_ID and CONNECT_GCP_TOPIC_NAME are required for GoogleCloudPubSub event deployments',
+        "CONNECT_GCP_PROJECT_ID and CONNECT_GCP_TOPIC_NAME are required for GoogleCloudPubSub event deployments",
       );
     }
 
     return {
-      type: 'GoogleCloudPubSub',
+      type: "GoogleCloudPubSub",
       projectId: config.connectGcpProjectId,
       topic: config.connectGcpTopicName,
     };
   }
 
-  if (destination === 'SNS') {
+  if (destination === "SNS") {
     if (!config.connectAwsTopicArn) {
-      throw new Error('CONNECT_AWS_TOPIC_ARN is required for SNS event deployments');
+      throw new Error("CONNECT_AWS_TOPIC_ARN is required for SNS event deployments");
     }
 
     return {
-      type: 'SNS',
+      type: "SNS",
       topicArn: config.connectAwsTopicArn,
-      authenticationMode: 'IAM',
+      authenticationMode: "IAM",
     };
   }
 
@@ -227,9 +206,9 @@ export function buildFormat(deliveryFormat: DeliveryFormat): {
   type: string;
   cloudEventsVersion?: string;
 } {
-  if (deliveryFormat === 'CloudEvents') {
-    return { type: 'CloudEvents', cloudEventsVersion: '1.0' };
+  if (deliveryFormat === "CloudEvents") {
+    return { type: "CloudEvents", cloudEventsVersion: "1.0" };
   }
 
-  return { type: 'Platform' };
+  return { type: "Platform" };
 }

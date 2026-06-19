@@ -1,23 +1,20 @@
-import { markSent, wasAlreadySent } from '../../dedupe/kv-dedupe-store';
-import { emailSendingEnabled, type CommerceNotification, type Env } from '../../env';
-import { errorFields, logger } from '../../shared/logger';
-import { incrementStats } from '../../stats/counters';
-import {
-  renderEmailVerification,
-  type CustomerEmailTokenCreatedNotification,
-} from './template';
+import { markSent, wasAlreadySent } from "../../dedupe/kv-dedupe-store";
+import { emailSendingEnabled, type CommerceNotification, type Env } from "../../env";
+import { errorFields, logger } from "../../shared/logger";
+import { incrementStats } from "../../stats/counters";
+import { renderEmailVerification, type CustomerEmailTokenCreatedNotification } from "./template";
 
 export function isCustomerEmailTokenCreatedNotification(
   notification: CommerceNotification | undefined,
 ): notification is CustomerEmailTokenCreatedNotification {
   return (
-    notification?.notificationType === 'Message' &&
-    typeof notification.id === 'string' &&
-    notification.type === 'CustomerEmailTokenCreated' &&
-    typeof notification.customerId === 'string' &&
-    typeof notification.customerEmail === 'string' &&
+    notification?.notificationType === "Message" &&
+    typeof notification.id === "string" &&
+    notification.type === "CustomerEmailTokenCreated" &&
+    typeof notification.customerId === "string" &&
+    typeof notification.customerEmail === "string" &&
     notification.customerEmail.length > 0 &&
-    typeof notification.value === 'string'
+    typeof notification.value === "string"
   );
 }
 
@@ -28,8 +25,8 @@ export async function handleCustomerEmailVerification(
   const notification = message.body;
 
   if (!isCustomerEmailTokenCreatedNotification(notification)) {
-    await incrementStats(env, 'ignored');
-    logger.info('email-worker ignored invalid email verification notification', {
+    await incrementStats(env, "ignored");
+    logger.info("email-worker ignored invalid email verification notification", {
       queueMessageId: message.id,
       notificationType: notification?.notificationType,
       type: notification?.type,
@@ -38,15 +35,15 @@ export async function handleCustomerEmailVerification(
     return;
   }
 
-  logger.info('email-worker email verification notification matched', {
+  logger.info("email-worker email verification notification matched", {
     queueMessageId: message.id,
     notificationId: notification.id,
     to: notification.customerEmail,
   });
 
   if (await wasAlreadySent(env, notification.id)) {
-    await incrementStats(env, 'duplicate');
-    logger.info('email-worker skipped duplicate notification', {
+    await incrementStats(env, "duplicate");
+    logger.info("email-worker skipped duplicate notification", {
       notificationId: notification.id,
     });
     message.ack();
@@ -54,8 +51,8 @@ export async function handleCustomerEmailVerification(
   }
 
   if (!emailSendingEnabled(env)) {
-    await incrementStats(env, 'disabled');
-    logger.info('email-worker email sending disabled', {
+    await incrementStats(env, "disabled");
+    logger.info("email-worker email sending disabled", {
       notificationId: notification.id,
       to: notification.customerEmail,
     });
@@ -65,7 +62,7 @@ export async function handleCustomerEmailVerification(
 
   try {
     const email = renderEmailVerification(notification, env.STORE_URL);
-    logger.info('email-worker calling email binding', {
+    logger.info("email-worker calling email binding", {
       to: notification.customerEmail,
       from: env.FROM_EMAIL,
       subject: email.subject,
@@ -78,8 +75,8 @@ export async function handleCustomerEmailVerification(
       text: email.text,
     });
   } catch (error) {
-    await incrementStats(env, 'errors');
-    logger.error('email-worker send failed', {
+    await incrementStats(env, "errors");
+    logger.error("email-worker send failed", {
       notificationId: notification.id,
       to: notification.customerEmail,
       ...errorFields(error),
@@ -89,18 +86,18 @@ export async function handleCustomerEmailVerification(
     return;
   }
 
-  logger.info('email-worker email binding returned');
+  logger.info("email-worker email binding returned");
 
   try {
     await markSent(env, notification.id);
-    await incrementStats(env, 'emailsSent');
-    logger.info('email-worker email sent and dedupe recorded', {
+    await incrementStats(env, "emailsSent");
+    logger.info("email-worker email sent and dedupe recorded", {
       notificationId: notification.id,
       to: notification.customerEmail,
     });
   } catch (error) {
     // The email is already out; prefer a rare duplicate on redelivery over loss.
-    logger.error('email-worker failed to record sent state after send', {
+    logger.error("email-worker failed to record sent state after send", {
       notificationId: notification.id,
       ...errorFields(error),
     });

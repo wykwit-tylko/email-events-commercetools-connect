@@ -1,8 +1,8 @@
 import type {
   CommerceNotificationPublisher,
   PublishOptions,
-} from '../infra/commerce-notification-publisher.js';
-import type { Logger } from '../shared/logger.js';
+} from "../infra/commerce-notification-publisher.js";
+import type { Logger } from "../shared/logger.js";
 
 export class FakePublisher implements CommerceNotificationPublisher {
   published: Array<{
@@ -13,10 +13,7 @@ export class FakePublisher implements CommerceNotificationPublisher {
   error: Error | undefined;
   neverResolve = false;
 
-  async publish(
-    payload: unknown,
-    options?: PublishOptions,
-  ): Promise<void> {
+  async publish(payload: unknown, options?: PublishOptions): Promise<void> {
     if (this.error) {
       throw this.error;
     }
@@ -47,13 +44,13 @@ export function createSilentLogger(): Logger & { entries: unknown[] } {
   return {
     entries,
     info(message, fields) {
-      entries.push({ level: 'info', message, fields });
+      entries.push({ level: "info", message, fields });
     },
     warn(message, fields) {
-      entries.push({ level: 'warn', message, fields });
+      entries.push({ level: "warn", message, fields });
     },
     error(message, fields) {
-      entries.push({ level: 'error', message, fields });
+      entries.push({ level: "error", message, fields });
     },
   };
 }

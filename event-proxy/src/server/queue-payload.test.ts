@@ -1,24 +1,21 @@
-import { describe, expect, it } from 'vitest';
-import {
-  InvalidCommerceNotificationJsonError,
-  toQueueCommerceNotification,
-} from './queue-payload';
+import { describe, expect, it } from "vitest";
+import { InvalidCommerceNotificationJsonError, toQueueCommerceNotification } from "./queue-payload";
 
-describe('toQueueCommerceNotification', () => {
-  it('parses JSON objects', () => {
+describe("toQueueCommerceNotification", () => {
+  it("parses JSON objects", () => {
     expect(toQueueCommerceNotification(Buffer.from('{"type":"OrderCreated"}'))).toEqual({
-      type: 'OrderCreated',
+      type: "OrderCreated",
     });
   });
 
-  it('rejects invalid JSON', () => {
-    expect(() => toQueueCommerceNotification(Buffer.from('not-json'))).toThrow(
+  it("rejects invalid JSON", () => {
+    expect(() => toQueueCommerceNotification(Buffer.from("not-json"))).toThrow(
       InvalidCommerceNotificationJsonError,
     );
   });
 
-  it('rejects non-object JSON', () => {
-    expect(() => toQueueCommerceNotification(Buffer.from('[]'))).toThrow(
+  it("rejects non-object JSON", () => {
+    expect(() => toQueueCommerceNotification(Buffer.from("[]"))).toThrow(
       InvalidCommerceNotificationJsonError,
     );
   });

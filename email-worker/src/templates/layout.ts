@@ -14,23 +14,23 @@ export type RenderedEmail = {
   text: string;
 };
 
-const FONT_STACK = 'Helvetica, Arial, sans-serif';
+const FONT_STACK = "Helvetica, Arial, sans-serif";
 
 const COLOR = {
   /** offwhite-700: page background */
-  page: '#f5f5f5',
+  page: "#f5f5f5",
   /** offwhite-600: surface-panel background */
-  panel: '#fcfbfa',
+  panel: "#fcfbfa",
   /** beige-200: surface-panel border */
-  border: '#e6e3e0',
+  border: "#e6e3e0",
   /** beige-100: highlighted surfaces (code box) */
-  surface: '#f2efee',
+  surface: "#f2efee",
   /** offblack-900: ink, solid buttons */
-  ink: '#1a1818',
+  ink: "#1a1818",
   /** offblack-700: body copy */
-  muted: '#2f2f2f',
+  muted: "#2f2f2f",
   /** grey-900: footer, fine print */
-  subtle: '#7c7d81',
+  subtle: "#7c7d81",
 } as const;
 
 /**
@@ -39,16 +39,16 @@ const COLOR = {
  * before building links.
  */
 export function normalizeStoreUrl(storeUrl: string): string {
-  return storeUrl.replace(/\/+$/, '');
+  return storeUrl.replace(/\/+$/, "");
 }
 
 export function escapeHtml(value: string): string {
   return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 /** Body paragraph; pass pre-escaped HTML. */
@@ -93,7 +93,10 @@ export interface ShelfMarketEmailContent {
   footerNote: string;
 }
 
-export function renderShelfMarketHtml(content: ShelfMarketEmailContent, rawStoreUrl: string): string {
+export function renderShelfMarketHtml(
+  content: ShelfMarketEmailContent,
+  rawStoreUrl: string,
+): string {
   const storeUrl = normalizeStoreUrl(rawStoreUrl);
   const year = new Date().getFullYear();
   return `<!DOCTYPE html>

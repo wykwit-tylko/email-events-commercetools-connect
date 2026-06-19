@@ -163,6 +163,7 @@ npm run deploy -- --dry-run   # preview config without side effects
 ```
 
 The deploy script:
+
 1. Reads `.env` from the working directory
 2. Auto-constructs `OUTBOUND_PUBLISHER_CONFIG` from `CF_ACCOUNT_ID`, `CF_QUEUE_ID`, `CF_QUEUE_API_TOKEN` if the full JSON is not present
 3. Validates prerequisites (commercetools CLI installed, credentials present)
@@ -175,11 +176,13 @@ The deploy script:
 The commercetools CLI `--configuration` flag splits values on commas. The deploy script transparently **base64-encodes** them with a `b64:` prefix. The event-proxy app detects and decodes them at startup.
 
 **Known limitation:** `commercetools connect deployment create` or update can return "Access denied" depending on your API client's Connect permissions. If this happens:
+
 - Use the generated `--configuration` flags from the dry-run output
 - Create the deployment manually via the Merchant Center Connect UI
 - Or ensure your CLI API client has Connect deployment management scopes
 
 Required `.env` variables:
+
 - `CTP_CLIENT_ID`, `CTP_CLIENT_SECRET`, `CTP_PROJECT_KEY`, `CTP_REGION` (or `CTP_AUTH_URL`)
 - Either `OUTBOUND_PUBLISHER_CONFIG` as JSON, or `CF_ACCOUNT_ID` + `CF_QUEUE_ID` + `CF_QUEUE_API_TOKEN`
 - `CT_MESSAGE_TYPES` (e.g. `OrderCreated,CustomerEmailTokenCreated,CustomerPasswordTokenCreated`)

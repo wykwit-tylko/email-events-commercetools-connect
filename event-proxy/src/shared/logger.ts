@@ -8,28 +8,26 @@ export type Logger = {
 
 export const logger: Logger = {
   info(message, fields = {}) {
-    writeLog('info', message, fields);
+    writeLog("info", message, fields);
   },
   warn(message, fields = {}) {
-    writeLog('warn', message, fields);
+    writeLog("warn", message, fields);
   },
   error(message, fields = {}) {
-    writeLog('error', message, fields);
+    writeLog("error", message, fields);
   },
 };
 
 function writeLog(level: string, message: string, fields: LogFields): void {
   const sanitizedFields = redact(fields);
-  process.stdout.write(
-    `${JSON.stringify({ level, message, ...sanitizedFields })}\n`,
-  );
+  process.stdout.write(`${JSON.stringify({ level, message, ...sanitizedFields })}\n`);
 }
 
 function redact(fields: LogFields): LogFields {
   return Object.fromEntries(
     Object.entries(fields).map(([key, value]) => [
       key,
-      /token|secret|password/i.test(key) ? '[redacted]' : value,
+      /token|secret|password/i.test(key) ? "[redacted]" : value,
     ]),
   );
 }

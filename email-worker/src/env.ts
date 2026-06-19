@@ -28,10 +28,10 @@ export type CommerceNotification = QueuePayload & {
 };
 
 export function emailSendingEnabled(env: Env): boolean {
-  return env.EMAIL_SENDING_ENABLED === 'true';
+  return env.EMAIL_SENDING_ENABLED === "true";
 }
 
 export function dedupeTtlSeconds(env: Env): number {
-  const value = Number(env.DEDUPE_TTL_SECONDS || '2592000');
+  const value = Number(env.DEDUPE_TTL_SECONDS || "2592000");
   return Number.isInteger(value) && value > 0 ? value : 2_592_000;
 }

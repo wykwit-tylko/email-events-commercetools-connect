@@ -5,19 +5,17 @@ import {
   type Destination,
   type MessageSubscription,
   type Subscription,
-} from './commercetools-client.js';
-import type { SubscriptionConfig } from '../config/env.js';
+} from "./commercetools-client.js";
+import type { SubscriptionConfig } from "../config/env.js";
 
 export async function upsertSubscription(options: {
   config: SubscriptionConfig;
   client: CommercetoolsClient;
-}): Promise<'created' | 'updated' | 'recreated'> {
+}): Promise<"created" | "updated" | "recreated"> {
   const destination = buildDestination(options.config);
   const messages = buildMessages(options.config.messageResourceTypes);
   const format = buildFormat(options.config.deliveryFormat);
-  const existing = await options.client.getSubscriptionByKey(
-    options.config.subscriptionKey,
-  );
+  const existing = await options.client.getSubscriptionByKey(options.config.subscriptionKey);
 
   if (!existing) {
     await options.client.createSubscription({
@@ -26,7 +24,7 @@ export async function upsertSubscription(options: {
       messages,
       format,
     });
-    return 'created';
+    return "created";
   }
 
   assertExpectedShape(existing);
@@ -42,7 +40,7 @@ export async function upsertSubscription(options: {
       messages,
       format,
     });
-    return 'recreated';
+    return "recreated";
   }
 
   await options.client.updateSubscription({
@@ -51,31 +49,27 @@ export async function upsertSubscription(options: {
     destination,
     messages,
   });
-  return 'updated';
+  return "updated";
 }
 
 export async function deleteSubscription(options: {
   config: SubscriptionConfig;
   client: CommercetoolsClient;
-}): Promise<'deleted' | 'missing'> {
-  const existing = await options.client.getSubscriptionByKey(
-    options.config.subscriptionKey,
-  );
+}): Promise<"deleted" | "missing"> {
+  const existing = await options.client.getSubscriptionByKey(options.config.subscriptionKey);
 
   if (!existing) {
-    return 'missing';
+    return "missing";
   }
 
   await options.client.deleteSubscription({
     key: options.config.subscriptionKey,
     version: existing.version,
   });
-  return 'deleted';
+  return "deleted";
 }
 
-export function buildMessages(
-  resourceTypes: string[],
-): MessageSubscription[] {
+export function buildMessages(resourceTypes: string[]): MessageSubscription[] {
   return resourceTypes.map((resourceTypeId) => ({ resourceTypeId }));
 }
 
@@ -99,14 +93,13 @@ function assertExpectedShape(subscription: Subscription): void {
 }
 
 function sameFormat(
-  actual: Subscription['format'] | undefined,
+  actual: Subscription["format"] | undefined,
   expected: ReturnType<typeof buildFormat>,
 ): boolean {
-  const actualType = actual?.type || 'Platform';
+  const actualType = actual?.type || "Platform";
   return (
     actualType === expected.type &&
-    (actual?.cloudEventsVersion || undefined) ===
-      (expected.cloudEventsVersion || undefined)
+    (actual?.cloudEventsVersion || undefined) === (expected.cloudEventsVersion || undefined)
   );
 }
 

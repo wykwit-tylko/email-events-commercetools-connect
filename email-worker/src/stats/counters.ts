@@ -1,7 +1,7 @@
-import type { Env } from '../env';
-import { logger } from '../shared/logger';
+import type { Env } from "../env";
+import { logger } from "../shared/logger";
 
-const STATS_KEY = 'stats:summary';
+const STATS_KEY = "stats:summary";
 
 export type Stats = {
   processed: number;
@@ -39,12 +39,9 @@ export async function getStats(env: Env): Promise<Stats> {
   }
 }
 
-export async function incrementStats(
-  env: Env,
-  field: keyof Stats,
-): Promise<void> {
+export async function incrementStats(env: Env, field: keyof Stats): Promise<void> {
   const stats = await getStats(env);
   stats[field] += 1;
   await env.EMAIL_DEDUPE.put(STATS_KEY, JSON.stringify(stats));
-  logger.info('email-worker stats incremented', { field, value: stats[field] });
+  logger.info("email-worker stats incremented", { field, value: stats[field] });
 }

@@ -6,14 +6,14 @@ import {
   paragraph,
   renderShelfMarketHtml,
   type RenderedEmail,
-} from '../../templates/layout';
+} from "../../templates/layout";
 
 export type { RenderedEmail };
 
 export type OrderCreatedNotification = {
-  notificationType: 'Message';
+  notificationType: "Message";
   id: string;
-  type: 'OrderCreated';
+  type: "OrderCreated";
   order: {
     id: string;
     customerEmail: string;
@@ -29,25 +29,25 @@ export function renderOrderCreatedEmail(
 ): RenderedEmail {
   const orderNumber = notification.order.orderNumber || notification.order.id;
   const subject = `Order ${orderNumber} confirmed`;
-  const keySuffix = orderAccessKey ? `?key=${encodeURIComponent(orderAccessKey)}` : '';
+  const keySuffix = orderAccessKey ? `?key=${encodeURIComponent(orderAccessKey)}` : "";
   const orderDetailsUrl = `${normalizeStoreUrl(storeUrl)}/orders/${encodeURIComponent(notification.order.id)}${keySuffix}`;
 
   const bodyHtml = [
-    paragraph('Hi,'),
+    paragraph("Hi,"),
     paragraph(
       `We have received your order <strong style="color: #1a1818;">${escapeHtml(orderNumber)}</strong>. You can view its details and track its status below:`,
     ),
-    ctaButton('View order details', orderDetailsUrl),
+    ctaButton("View order details", orderDetailsUrl),
     linkFallback(orderDetailsUrl),
-    paragraph('We will send you another email when your order is ready for delivery.'),
-  ].join('\n');
+    paragraph("We will send you another email when your order is ready for delivery."),
+  ].join("\n");
 
   return {
     subject,
     html: renderShelfMarketHtml(
       {
-        eyebrow: 'Orders',
-        title: 'Thank you for your order.',
+        eyebrow: "Orders",
+        title: "Thank you for your order.",
         bodyHtml,
         footerNote: `This email was sent to ${notification.order.customerEmail}.`,
       },

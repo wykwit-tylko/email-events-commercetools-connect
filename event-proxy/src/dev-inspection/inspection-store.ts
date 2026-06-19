@@ -1,4 +1,4 @@
-import { redactInspectionBody } from './redact.js';
+import { redactInspectionBody } from "./redact.js";
 
 export type InspectionEntry = {
   id: string;
@@ -16,7 +16,7 @@ export class InspectionStore {
 
   constructor(private readonly maxMessages: number) {}
 
-  add(entry: Omit<InspectionEntry, 'id' | 'receivedAt'>): InspectionEntry {
+  add(entry: Omit<InspectionEntry, "id" | "receivedAt">): InspectionEntry {
     const stored: InspectionEntry = {
       id: String(this.nextId),
       receivedAt: new Date().toISOString(),

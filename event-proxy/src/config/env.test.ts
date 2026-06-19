@@ -1,31 +1,29 @@
-import { describe, expect, it } from 'vitest';
-import { loadAppConfig, loadSubscriptionConfig } from './env.js';
+import { describe, expect, it } from "vitest";
+import { loadAppConfig, loadSubscriptionConfig } from "./env.js";
 
 const publisherConfig = JSON.stringify({
-  type: 'cloudflare-queue',
-  accountId: 'account-id',
-  queueId: 'queue-id',
-  apiToken: 'token',
+  type: "cloudflare-queue",
+  accountId: "account-id",
+  queueId: "queue-id",
+  apiToken: "token",
 });
 
-describe('config', () => {
-  it('requires outbound publisher config for app config', () => {
-    expect(() =>
-      loadAppConfig({}),
-    ).toThrow('OUTBOUND_PUBLISHER_CONFIG is required');
+describe("config", () => {
+  it("requires outbound publisher config for app config", () => {
+    expect(() => loadAppConfig({})).toThrow("OUTBOUND_PUBLISHER_CONFIG is required");
   });
 
-  it('loads app defaults', () => {
+  it("loads app defaults", () => {
     const config = loadAppConfig({
       OUTBOUND_PUBLISHER_CONFIG: publisherConfig,
     });
 
     expect(config.port).toBe(8080);
     expect(config.publisherConfig).toEqual({
-      type: 'cloudflare-queue',
-      accountId: 'account-id',
-      queueId: 'queue-id',
-      apiToken: 'token',
+      type: "cloudflare-queue",
+      accountId: "account-id",
+      queueId: "queue-id",
+      apiToken: "token",
     });
     expect(config.messageTypes).toEqual([]);
     expect(config.maxBodyBytes).toBe(90_000);
@@ -36,52 +34,52 @@ describe('config', () => {
     expect(config.devInspectionToken).toBeUndefined();
   });
 
-  it('treats an empty dev inspection token as unset', () => {
+  it("treats an empty dev inspection token as unset", () => {
     const config = loadAppConfig({
       OUTBOUND_PUBLISHER_CONFIG: publisherConfig,
-      DEV_INSPECTION_TOKEN: '',
+      DEV_INSPECTION_TOKEN: "",
     });
 
     expect(config.devInspectionToken).toBeUndefined();
   });
 
-  it('loads the dev inspection token when set', () => {
+  it("loads the dev inspection token when set", () => {
     const config = loadAppConfig({
       OUTBOUND_PUBLISHER_CONFIG: publisherConfig,
-      DEV_INSPECTION_TOKEN: 'inspect-secret',
+      DEV_INSPECTION_TOKEN: "inspect-secret",
     });
 
-    expect(config.devInspectionToken).toBe('inspect-secret');
+    expect(config.devInspectionToken).toBe("inspect-secret");
   });
 
-  it('loads message type filters with de-duplication', () => {
+  it("loads message type filters with de-duplication", () => {
     const config = loadAppConfig({
       OUTBOUND_PUBLISHER_CONFIG: publisherConfig,
-      CT_MESSAGE_TYPES: 'OrderCreated, CustomerCreated, OrderCreated',
+      CT_MESSAGE_TYPES: "OrderCreated, CustomerCreated, OrderCreated",
     });
 
-    expect(config.messageTypes).toEqual(['OrderCreated', 'CustomerCreated']);
+    expect(config.messageTypes).toEqual(["OrderCreated", "CustomerCreated"]);
   });
 
-  it('rejects unsupported publisher config types', () => {
+  it("rejects unsupported publisher config types", () => {
     expect(() =>
       loadAppConfig({
-        OUTBOUND_PUBLISHER_CONFIG: JSON.stringify({ type: 'sns' }),
+        OUTBOUND_PUBLISHER_CONFIG: JSON.stringify({ type: "sns" }),
       }),
-    ).toThrow('OUTBOUND_PUBLISHER_CONFIG type must be cloudflare-queue');
+    ).toThrow("OUTBOUND_PUBLISHER_CONFIG type must be cloudflare-queue");
   });
 
-  it('loads subscription config with resource type de-duplication', () => {
+  it("loads subscription config with resource type de-duplication", () => {
     const config = loadSubscriptionConfig({
-      CTP_REGION: 'europe-west1.gcp',
-      CTP_PROJECT_KEY: 'project',
-      CTP_CLIENT_ID: 'client-id',
-      CTP_CLIENT_SECRET: 'client-secret',
-      CTP_SCOPE: 'manage_subscriptions:project',
-      CT_MESSAGE_RESOURCE_TYPES: 'order, customer, order',
+      CTP_REGION: "europe-west1.gcp",
+      CTP_PROJECT_KEY: "project",
+      CTP_CLIENT_ID: "client-id",
+      CTP_CLIENT_SECRET: "client-secret",
+      CTP_SCOPE: "manage_subscriptions:project",
+      CT_MESSAGE_RESOURCE_TYPES: "order, customer, order",
     });
 
-    expect(config.messageResourceTypes).toEqual(['order', 'customer']);
-    expect(config.deliveryFormat).toBe('Platform');
+    expect(config.messageResourceTypes).toEqual(["order", "customer"]);
+    expect(config.deliveryFormat).toBe("Platform");
   });
 });

@@ -1,16 +1,13 @@
-import type { Request } from 'express';
+import type { Request } from "express";
 
 export class PayloadTooLargeError extends Error {
   constructor(limit: number) {
     super(`Request body exceeds MAX_BODY_BYTES (${limit})`);
-    this.name = 'PayloadTooLargeError';
+    this.name = "PayloadTooLargeError";
   }
 }
 
-export async function readRawBody(
-  request: Request,
-  maxBodyBytes: number,
-): Promise<Buffer> {
+export async function readRawBody(request: Request, maxBodyBytes: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let bytes = 0;
 

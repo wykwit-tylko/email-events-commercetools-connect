@@ -11,13 +11,13 @@ const EMAIL_KEY_PATTERN = /email|^to$/i;
 
 export const logger: Logger = {
   info(message, fields = {}) {
-    console.log(serialize('info', message, fields));
+    console.log(serialize("info", message, fields));
   },
   warn(message, fields = {}) {
-    console.warn(serialize('warn', message, fields));
+    console.warn(serialize("warn", message, fields));
   },
   error(message, fields = {}) {
-    console.error(serialize('error', message, fields));
+    console.error(serialize("error", message, fields));
   },
 };
 
@@ -30,9 +30,9 @@ function serialize(level: string, message: string, fields: LogFields): string {
 
 function redactValue(key: string, value: unknown): unknown {
   if (SECRET_KEY_PATTERN.test(key)) {
-    return '[redacted]';
+    return "[redacted]";
   }
-  if (EMAIL_KEY_PATTERN.test(key) && typeof value === 'string') {
+  if (EMAIL_KEY_PATTERN.test(key) && typeof value === "string") {
     return maskEmail(value);
   }
   return value;
@@ -40,7 +40,7 @@ function redactValue(key: string, value: unknown): unknown {
 
 /** `user@example.com` -> `u***@example.com`. */
 function maskEmail(value: string): string {
-  const at = value.indexOf('@');
+  const at = value.indexOf("@");
   if (at <= 0) {
     return value;
   }

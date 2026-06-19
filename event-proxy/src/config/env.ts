@@ -1,32 +1,32 @@
 export const DEFAULT_MESSAGE_RESOURCE_TYPES = [
-  'approval-flow',
-  'approval-rule',
-  'associate-role',
-  'business-unit',
-  'category',
-  'customer',
-  'customer-email-token',
-  'customer-group',
-  'customer-password-token',
-  'inventory-entry',
-  'order',
-  'payment',
-  'product',
-  'product-selection',
-  'product-tailoring',
-  'quote',
-  'quote-request',
-  'review',
-  'shopping-list',
-  'staged-quote',
-  'standalone-price',
-  'store',
+  "approval-flow",
+  "approval-rule",
+  "associate-role",
+  "business-unit",
+  "category",
+  "customer",
+  "customer-email-token",
+  "customer-group",
+  "customer-password-token",
+  "inventory-entry",
+  "order",
+  "payment",
+  "product",
+  "product-selection",
+  "product-tailoring",
+  "quote",
+  "quote-request",
+  "review",
+  "shopping-list",
+  "staged-quote",
+  "standalone-price",
+  "store",
 ] as const;
 
-export type DeliveryFormat = 'Platform' | 'CloudEvents';
+export type DeliveryFormat = "Platform" | "CloudEvents";
 
 export type PublisherConfig = {
-  type: 'cloudflare-queue';
+  type: "cloudflare-queue";
   accountId: string;
   queueId: string;
   apiToken: string;
@@ -66,7 +66,7 @@ export type SubscriptionConfig = CtpConfig & {
 
 type Env = Record<string, string | undefined>;
 
-const defaultSubscriptionKey = 'email-events-proxy';
+const defaultSubscriptionKey = "email-events-proxy";
 
 /**
  * Decode a value if it was base64-encoded by the deploy script to avoid
@@ -88,13 +88,13 @@ function maybeBase64Decode(value: string | undefined): string | undefined {
     cleaned = cleaned.slice(1, -1);
   }
 
-  if (!cleaned.startsWith('b64:')) {
+  if (!cleaned.startsWith("b64:")) {
     return cleaned;
   }
 
   const encoded = cleaned.slice(4);
   try {
-    return Buffer.from(encoded, 'base64').toString('utf8');
+    return Buffer.from(encoded, "base64").toString("utf8");
   } catch {
     return cleaned;
   }
@@ -102,27 +102,21 @@ function maybeBase64Decode(value: string | undefined): string | undefined {
 
 export function loadAppConfig(env: Env = process.env): AppConfig {
   return {
-    port: parsePositiveInteger(env.PORT, 8080, 'PORT'),
-    publisherConfig: parsePublisherConfig(
-      maybeBase64Decode(env.OUTBOUND_PUBLISHER_CONFIG),
-    ),
+    port: parsePositiveInteger(env.PORT, 8080, "PORT"),
+    publisherConfig: parsePublisherConfig(maybeBase64Decode(env.OUTBOUND_PUBLISHER_CONFIG)),
     messageTypes: parseMessageTypes(maybeBase64Decode(env.CT_MESSAGE_TYPES)),
-    maxBodyBytes: parsePositiveInteger(
-      env.MAX_BODY_BYTES,
-      90_000,
-      'MAX_BODY_BYTES',
-    ),
+    maxBodyBytes: parsePositiveInteger(env.MAX_BODY_BYTES, 90_000, "MAX_BODY_BYTES"),
     forwardingTimeoutMs: parsePositiveInteger(
       env.FORWARDING_TIMEOUT_MS,
       2_000,
-      'FORWARDING_TIMEOUT_MS',
+      "FORWARDING_TIMEOUT_MS",
     ),
     dryRunForwarding: parseBoolean(env.DRY_RUN_FORWARDING, false),
     devInspectionEnabled: parseBoolean(env.DEV_INSPECTION_ENABLED, false),
     devInspectionMaxMessages: parsePositiveInteger(
       env.DEV_INSPECTION_MAX_MESSAGES,
       100,
-      'DEV_INSPECTION_MAX_MESSAGES',
+      "DEV_INSPECTION_MAX_MESSAGES",
     ),
     devInspectionToken: env.DEV_INSPECTION_TOKEN || undefined,
     connectSubscriptionDestination: env.CONNECT_SUBSCRIPTION_DESTINATION,
@@ -150,14 +144,12 @@ export function loadCtpConfig(env: Env = process.env): CtpConfig | undefined {
   };
 }
 
-export function loadSubscriptionConfig(
-  env: Env = process.env,
-): SubscriptionConfig {
+export function loadSubscriptionConfig(env: Env = process.env): SubscriptionConfig {
   const ctpConfig = loadCtpConfig(env);
   if (!ctpConfig) {
     throw new Error(
-      'CTP credentials are required for subscription management. ' +
-        'Provide CTP_REGION, CTP_PROJECT_KEY, CTP_CLIENT_ID, CTP_CLIENT_SECRET, and CTP_SCOPE.',
+      "CTP credentials are required for subscription management. " +
+        "Provide CTP_REGION, CTP_PROJECT_KEY, CTP_CLIENT_ID, CTP_CLIENT_SECRET, and CTP_SCOPE.",
     );
   }
 
@@ -167,7 +159,7 @@ export function loadSubscriptionConfig(
     messageResourceTypes: parseMessageResourceTypes(
       maybeBase64Decode(env.CT_MESSAGE_RESOURCE_TYPES),
     ),
-    deliveryFormat: 'Platform',
+    deliveryFormat: "Platform",
     connectSubscriptionDestination: env.CONNECT_SUBSCRIPTION_DESTINATION,
     connectGcpProjectId: env.CONNECT_GCP_PROJECT_ID,
     connectGcpTopicName: env.CONNECT_GCP_TOPIC_NAME,
@@ -176,12 +168,10 @@ export function loadSubscriptionConfig(
 }
 
 export function parseMessageResourceTypes(value: string | undefined): string[] {
-  const resourceTypes = parseCommaSeparatedList(
-    value || DEFAULT_MESSAGE_RESOURCE_TYPES.join(','),
-  );
+  const resourceTypes = parseCommaSeparatedList(value || DEFAULT_MESSAGE_RESOURCE_TYPES.join(","));
 
   if (resourceTypes.length === 0) {
-    throw new Error('CT_MESSAGE_RESOURCE_TYPES must contain at least one value');
+    throw new Error("CT_MESSAGE_RESOURCE_TYPES must contain at least one value");
   }
 
   return resourceTypes;
@@ -199,7 +189,7 @@ function parseCommaSeparatedList(value: string): string[] {
   return [
     ...new Set(
       value
-        .split(',')
+        .split(",")
         .map((item) => item.trim())
         .filter(Boolean),
     ),
@@ -208,55 +198,52 @@ function parseCommaSeparatedList(value: string): string[] {
 
 function parsePublisherConfig(value: string | undefined): PublisherConfig {
   if (!value) {
-    throw new Error('OUTBOUND_PUBLISHER_CONFIG is required');
+    throw new Error("OUTBOUND_PUBLISHER_CONFIG is required");
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(value) as unknown;
   } catch {
-    const display =
-      value.length > 120 ? `${value.slice(0, 120)}...` : value;
-    throw new Error(
-      `OUTBOUND_PUBLISHER_CONFIG must be valid JSON. Received: ${display}`,
-    );
+    const display = value.length > 120 ? `${value.slice(0, 120)}...` : value;
+    throw new Error(`OUTBOUND_PUBLISHER_CONFIG must be valid JSON. Received: ${display}`);
   }
 
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('OUTBOUND_PUBLISHER_CONFIG must be a JSON object');
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("OUTBOUND_PUBLISHER_CONFIG must be a JSON object");
   }
 
   const config = parsed as Record<string, unknown>;
-  if (config.type !== 'cloudflare-queue') {
-    throw new Error('OUTBOUND_PUBLISHER_CONFIG type must be cloudflare-queue');
+  if (config.type !== "cloudflare-queue") {
+    throw new Error("OUTBOUND_PUBLISHER_CONFIG type must be cloudflare-queue");
   }
 
   return {
-    type: 'cloudflare-queue',
-    accountId: requireStringConfig(config, 'accountId'),
-    queueId: requireStringConfig(config, 'queueId'),
-    apiToken: requireStringConfig(config, 'apiToken'),
+    type: "cloudflare-queue",
+    accountId: requireStringConfig(config, "accountId"),
+    queueId: requireStringConfig(config, "queueId"),
+    apiToken: requireStringConfig(config, "apiToken"),
   };
 }
 
 function requireStringConfig(config: Record<string, unknown>, key: string): string {
   const value = config[key];
-  if (typeof value !== 'string' || value.length === 0) {
+  if (typeof value !== "string" || value.length === 0) {
     throw new Error(`OUTBOUND_PUBLISHER_CONFIG.${key} is required`);
   }
   return value;
 }
 
 function parseDeliveryFormat(value: string | undefined): DeliveryFormat {
-  if (!value || value === 'Platform') {
-    return 'Platform';
+  if (!value || value === "Platform") {
+    return "Platform";
   }
 
-  if (value === 'CloudEvents') {
-    return 'CloudEvents';
+  if (value === "CloudEvents") {
+    return "CloudEvents";
   }
 
-  throw new Error('CT_DELIVERY_FORMAT must be either Platform or CloudEvents');
+  throw new Error("CT_DELIVERY_FORMAT must be either Platform or CloudEvents");
 }
 
 function apiUrlFromRegion(region: string): string {
@@ -297,13 +284,13 @@ function parseBoolean(value: string | undefined, defaultValue: boolean): boolean
     return defaultValue;
   }
 
-  if (value === 'true') {
+  if (value === "true") {
     return true;
   }
 
-  if (value === 'false') {
+  if (value === "false") {
     return false;
   }
 
-  throw new Error('Boolean environment values must be true or false');
+  throw new Error("Boolean environment values must be true or false");
 }

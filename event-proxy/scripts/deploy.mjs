@@ -192,7 +192,9 @@ function runWithOutput(command, options = {}) {
 function getLatestGitTag() {
   const output = runSilent("git describe --tags --abbrev=0");
   if (!output) {
-    console.error("Error: Could not determine latest git tag. Ensure the repository has at least one tag.");
+    console.error(
+      "Error: Could not determine latest git tag. Ensure the repository has at least one tag.",
+    );
     process.exit(1);
   }
   return output.trim();
@@ -201,7 +203,9 @@ function getLatestGitTag() {
 function getGitRemoteUrl() {
   const output = runSilent("git remote get-url origin");
   if (!output) {
-    console.error("Error: Could not determine git remote URL. Ensure 'origin' remote is configured.");
+    console.error(
+      "Error: Could not determine git remote URL. Ensure 'origin' remote is configured.",
+    );
     process.exit(1);
   }
   return output.trim();
@@ -290,11 +294,15 @@ function buildConfigFlags(env, publisherConfig) {
   }
 
   if (env.CT_MESSAGE_RESOURCE_TYPES) {
-    flags.push(`--configuration '${prefix}.CT_MESSAGE_RESOURCE_TYPES=${b64(env.CT_MESSAGE_RESOURCE_TYPES)}'`);
+    flags.push(
+      `--configuration '${prefix}.CT_MESSAGE_RESOURCE_TYPES=${b64(env.CT_MESSAGE_RESOURCE_TYPES)}'`,
+    );
   }
 
   if (publisherConfig) {
-    flags.push(`--configuration '${prefix}.OUTBOUND_PUBLISHER_CONFIG=${b64(JSON.stringify(publisherConfig))}'`);
+    flags.push(
+      `--configuration '${prefix}.OUTBOUND_PUBLISHER_CONFIG=${b64(JSON.stringify(publisherConfig))}'`,
+    );
   }
 
   return flags;
@@ -343,15 +351,21 @@ function publishConnector() {
 }
 
 function pollConnectorPublished() {
-  console.log(`\nPolling connector '${CONNECTOR_KEY}' publish status every ${POLL_INTERVAL_SECONDS}s...\n`);
+  console.log(
+    `\nPolling connector '${CONNECTOR_KEY}' publish status every ${POLL_INTERVAL_SECONDS}s...\n`,
+  );
 
   const terminalStates = ["Published", "Failed"];
 
   for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
-    const output = runSilent(`commercetools connect connectorstaged describe --key ${CONNECTOR_KEY}`);
+    const output = runSilent(
+      `commercetools connect connectorstaged describe --key ${CONNECTOR_KEY}`,
+    );
 
     if (!output) {
-      console.log(`Attempt ${attempt}: unable to fetch connector status, retrying in ${POLL_INTERVAL_SECONDS}s...`);
+      console.log(
+        `Attempt ${attempt}: unable to fetch connector status, retrying in ${POLL_INTERVAL_SECONDS}s...`,
+      );
       sleepSync(POLL_INTERVAL_SECONDS);
       continue;
     }
@@ -367,7 +381,9 @@ function pollConnectorPublished() {
         return status === "Published";
       }
     } else {
-      console.log(`Attempt ${attempt}: could not parse status, retrying in ${POLL_INTERVAL_SECONDS}s...`);
+      console.log(
+        `Attempt ${attempt}: could not parse status, retrying in ${POLL_INTERVAL_SECONDS}s...`,
+      );
     }
 
     if (attempt < MAX_POLL_ATTEMPTS) {
@@ -406,11 +422,26 @@ function verifyConnectorSupportsProject(projectKey) {
   if (privateProjectsIdx !== -1) {
     const start = privateProjectsIdx + "privateProjects:".length;
     const nextFieldNames = [
-      "integrationTypes:", "supportedRegions:", "hasChanges:",
-      "alreadyListed:", "status:", "publishingReport:", "isPreviewable:",
-      "previewableReport:", "private:", "documentationUrl:", "apiClient:",
-      "globalConfiguration:", "configurations:", "repository:", "creator:",
-      "key:", "name:", "description:", "id:", "version:",
+      "integrationTypes:",
+      "supportedRegions:",
+      "hasChanges:",
+      "alreadyListed:",
+      "status:",
+      "publishingReport:",
+      "isPreviewable:",
+      "previewableReport:",
+      "private:",
+      "documentationUrl:",
+      "apiClient:",
+      "globalConfiguration:",
+      "configurations:",
+      "repository:",
+      "creator:",
+      "key:",
+      "name:",
+      "description:",
+      "id:",
+      "version:",
     ];
 
     let end = output.length;
@@ -443,7 +474,9 @@ function verifyConnectorSupportsProject(projectKey) {
 
   console.error(`\nError: Connector '${CONNECTOR_KEY}' is restricted to specific projects.`);
   console.error(`Current project '${projectKey}' is NOT in the supported projects list.`);
-  console.error(`Supported projects: ${supportedProjects.length > 0 ? supportedProjects.join(", ") : "(none listed)"}`);
+  console.error(
+    `Supported projects: ${supportedProjects.length > 0 ? supportedProjects.join(", ") : "(none listed)"}`,
+  );
   console.error("\nHow to fix:");
   console.error("  1. Go to Merchant Center → Connect → Manage connectors");
   console.error(`  2. Find the connector '${CONNECTOR_KEY}'`);
@@ -467,7 +500,9 @@ function listDeployments() {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("ID") || trimmed.startsWith("Showing")) continue;
 
-    const idMatch = trimmed.match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/);
+    const idMatch = trimmed.match(
+      /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/,
+    );
     if (idMatch) {
       deployments.push({ id: idMatch[1] });
     }
@@ -511,14 +546,15 @@ function findDeploymentsForConnector(connectorKey) {
 }
 
 function extractDeploymentIdFromOutput(stdout) {
-  const idMatch = stdout.match(/ID:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i) ||
-                  stdout.match(/"id":\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"/);
+  const idMatch =
+    stdout.match(/ID:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i) ||
+    stdout.match(/"id":\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"/);
   return idMatch ? idMatch[1] : null;
 }
 
 function extractDeploymentKeyFromOutput(stdout) {
-  const keyMatch = stdout.match(/key:\s*([A-Za-z0-9_-]+)/i) ||
-                   stdout.match(/"key":\s*"([A-Za-z0-9_-]+)"/);
+  const keyMatch =
+    stdout.match(/key:\s*([A-Za-z0-9_-]+)/i) || stdout.match(/"key":\s*"([A-Za-z0-9_-]+)"/);
   return keyMatch ? keyMatch[1] : null;
 }
 
@@ -539,14 +575,16 @@ function deleteDeployment(deleteFlag) {
   } catch (e) {
     const clean = stripAnsi(e.stdout || "");
     const errMatch = clean.match(/Error:\s*(.+)/);
-    const reason = errMatch ? errMatch[1].trim() : (e.message || "unknown error");
+    const reason = errMatch ? errMatch[1].trim() : e.message || "unknown error";
     console.log(`Command failed (ignored): ${reason}`);
     return false;
   }
 }
 
 function pollDeploymentStatus(targetRef, isId = false) {
-  console.log(`\nPolling deployment ${isId ? "id" : "key"}=${targetRef} every ${POLL_INTERVAL_SECONDS}s until terminal...\n`);
+  console.log(
+    `\nPolling deployment ${isId ? "id" : "key"}=${targetRef} every ${POLL_INTERVAL_SECONDS}s until terminal...\n`,
+  );
 
   const terminalStates = ["Deployed", "Failed", "UndeployFailed"];
   const describeFlag = isId ? `--id ${targetRef}` : `--key ${targetRef}`;
@@ -555,7 +593,9 @@ function pollDeploymentStatus(targetRef, isId = false) {
     const output = runSilent(`commercetools connect deployment describe ${describeFlag}`);
 
     if (!output) {
-      console.log(`Attempt ${attempt}: unable to fetch status, retrying in ${POLL_INTERVAL_SECONDS}s...`);
+      console.log(
+        `Attempt ${attempt}: unable to fetch status, retrying in ${POLL_INTERVAL_SECONDS}s...`,
+      );
       sleepSync(POLL_INTERVAL_SECONDS);
       continue;
     }
@@ -571,7 +611,9 @@ function pollDeploymentStatus(targetRef, isId = false) {
         return status === "Deployed";
       }
     } else {
-      console.log(`Attempt ${attempt}: could not parse status, retrying in ${POLL_INTERVAL_SECONDS}s...`);
+      console.log(
+        `Attempt ${attempt}: could not parse status, retrying in ${POLL_INTERVAL_SECONDS}s...`,
+      );
     }
 
     if (attempt < MAX_POLL_ATTEMPTS) {
@@ -599,8 +641,12 @@ function createDeployment(region, configFlags) {
   } catch (e) {
     const clean = stripAnsi(e.stdout || "");
     if (clean.includes("AuthorizationError") || clean.includes("Access denied")) {
-      console.error("\nError: Your API client does not have permission to create Connect deployments.");
-      console.error("The commercetools CLI authenticated successfully, but the API rejected the request.");
+      console.error(
+        "\nError: Your API client does not have permission to create Connect deployments.",
+      );
+      console.error(
+        "The commercetools CLI authenticated successfully, but the API rejected the request.",
+      );
       console.error("\nRequired scopes for deployment management:");
       console.error("  - manage_project  (or a Connect-specific scope like manage_connectors)");
       console.error("\nHow to fix:");
@@ -645,8 +691,12 @@ function updateDeployment(deploymentRef, region, configFlags, isId = false) {
   } catch (e) {
     const clean = stripAnsi(e.stdout || "");
     if (clean.includes("AuthorizationError") || clean.includes("Access denied")) {
-      console.error("\nError: Your API client does not have permission to update Connect deployments.");
-      console.error("The commercetools CLI authenticated successfully, but the API rejected the request.");
+      console.error(
+        "\nError: Your API client does not have permission to update Connect deployments.",
+      );
+      console.error(
+        "The commercetools CLI authenticated successfully, but the API rejected the request.",
+      );
       console.error("\nRequired scopes for deployment management:");
       console.error("  - manage_project (or a Connect-specific scope like manage_connectors)");
       console.error("\nHow to fix:");
@@ -740,7 +790,9 @@ async function main() {
 
   console.log(`Region: ${resolvedRegion}`);
   console.log(`Project: ${env.CTP_PROJECT_KEY}`);
-  console.log(`Publisher: cloudflare-queue (account=${publisherConfig.accountId}, queue=${publisherConfig.queueId})`);
+  console.log(
+    `Publisher: cloudflare-queue (account=${publisherConfig.accountId}, queue=${publisherConfig.queueId})`,
+  );
   console.log(`Step 1 completed in ${formatDuration(Date.now() - stepLoadStart)}\n`);
 
   if (dryRun) {

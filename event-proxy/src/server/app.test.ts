@@ -7,12 +7,14 @@ import { createSilentLogger, FakePublisher } from "../test/test-utils.js";
 
 const baseConfig: AppConfig = {
   port: 8080,
-  publisherConfig: {
-    type: "cloudflare-queue",
-    accountId: "account-id",
-    queueId: "queue-id",
-    apiToken: "token",
-  },
+  publisherConfigs: [
+    {
+      type: "cloudflare-queue",
+      accountId: "account-id",
+      queueId: "queue-id",
+      apiToken: "token",
+    },
+  ],
   messageTypes: [],
   maxBodyBytes: 1024,
   forwardingTimeoutMs: 50,
@@ -30,7 +32,6 @@ describe("event proxy app", () => {
       logger: createSilentLogger(),
     });
     const bodyText = '{"type":"OrderCreated","spacing": true}';
-    const body = Buffer.from(bodyText);
 
     await request(app)
       .post("/event-proxy")

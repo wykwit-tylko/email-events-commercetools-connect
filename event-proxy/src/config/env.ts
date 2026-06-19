@@ -25,16 +25,25 @@ export const DEFAULT_MESSAGE_RESOURCE_TYPES = [
 
 export type DeliveryFormat = "Platform" | "CloudEvents";
 
-export type PublisherConfig = {
+export type CloudflareQueuePublisherConfig = {
   type: "cloudflare-queue";
   accountId: string;
   queueId: string;
   apiToken: string;
 };
 
+export type HttpWebhookPublisherConfig = {
+  type: "http-webhook";
+  endpointUrl: string;
+  /** Shared emails-specific secret used to sign Email Event deliveries. */
+  emailEventSecret: string;
+};
+
+export type PublisherConfig = CloudflareQueuePublisherConfig | HttpWebhookPublisherConfig;
+
 export type AppConfig = {
   port: number;
-  publisherConfig: PublisherConfig;
+  publisherConfigs: PublisherConfig[];
   messageTypes: string[];
   maxBodyBytes: number;
   forwardingTimeoutMs: number;
@@ -103,7 +112,7 @@ function maybeBase64Decode(value: string | undefined): string | undefined {
 export function loadAppConfig(env: Env = process.env): AppConfig {
   return {
     port: parsePositiveInteger(env.PORT, 8080, "PORT"),
-    publisherConfig: parsePublisherConfig(maybeBase64Decode(env.OUTBOUND_PUBLISHER_CONFIG)),
+    publisherConfigs: parsePublisherConfigs(maybeBase64Decode(env.OUTBOUND_PUBLISHER_CONFIG)),
     messageTypes: parseMessageTypes(maybeBase64Decode(env.CT_MESSAGE_TYPES)),
     maxBodyBytes: parsePositiveInteger(env.MAX_BODY_BYTES, 90_000, "MAX_BODY_BYTES"),
     forwardingTimeoutMs: parsePositiveInteger(
@@ -196,7 +205,7 @@ function parseCommaSeparatedList(value: string): string[] {
   ];
 }
 
-function parsePublisherConfig(value: string | undefined): PublisherConfig {
+function parsePublisherConfigs(value: string | undefined): PublisherConfig[] {
   if (!value) {
     throw new Error("OUTBOUND_PUBLISHER_CONFIG is required");
   }
@@ -209,41 +218,55 @@ function parsePublisherConfig(value: string | undefined): PublisherConfig {
     throw new Error(`OUTBOUND_PUBLISHER_CONFIG must be valid JSON. Received: ${display}`);
   }
 
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("OUTBOUND_PUBLISHER_CONFIG must be a JSON object");
+  let entries: unknown[];
+  if (Array.isArray(parsed)) {
+    if (parsed.length === 0) {
+      throw new Error("OUTBOUND_PUBLISHER_CONFIG array must contain at least one publisher");
+    }
+    entries = parsed;
+  } else if (parsed && typeof parsed === "object") {
+    entries = [parsed];
+  } else {
+    throw new Error("OUTBOUND_PUBLISHER_CONFIG must be a JSON object or an array of objects");
   }
 
-  const config = parsed as Record<string, unknown>;
-  if (config.type !== "cloudflare-queue") {
-    throw new Error("OUTBOUND_PUBLISHER_CONFIG type must be cloudflare-queue");
-  }
-
-  return {
-    type: "cloudflare-queue",
-    accountId: requireStringConfig(config, "accountId"),
-    queueId: requireStringConfig(config, "queueId"),
-    apiToken: requireStringConfig(config, "apiToken"),
-  };
+  return entries.map((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new Error(`OUTBOUND_PUBLISHER_CONFIG[${index}] must be an object`);
+    }
+    return parsePublisherEntry(entry as Record<string, unknown>, index);
+  });
 }
 
-function requireStringConfig(config: Record<string, unknown>, key: string): string {
+function parsePublisherEntry(config: Record<string, unknown>, index: number): PublisherConfig {
+  const path = `OUTBOUND_PUBLISHER_CONFIG[${index}]`;
+
+  if (config.type === "cloudflare-queue") {
+    return {
+      type: "cloudflare-queue",
+      accountId: requireStringConfig(config, "accountId", path),
+      queueId: requireStringConfig(config, "queueId", path),
+      apiToken: requireStringConfig(config, "apiToken", path),
+    };
+  }
+
+  if (config.type === "http-webhook") {
+    return {
+      type: "http-webhook",
+      endpointUrl: requireStringConfig(config, "endpointUrl", path),
+      emailEventSecret: requireStringConfig(config, "emailEventSecret", path),
+    };
+  }
+
+  throw new Error(`${path}.type must be cloudflare-queue or http-webhook`);
+}
+
+function requireStringConfig(config: Record<string, unknown>, key: string, path: string): string {
   const value = config[key];
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`OUTBOUND_PUBLISHER_CONFIG.${key} is required`);
+    throw new Error(`${path}.${key} is required`);
   }
   return value;
-}
-
-function parseDeliveryFormat(value: string | undefined): DeliveryFormat {
-  if (!value || value === "Platform") {
-    return "Platform";
-  }
-
-  if (value === "CloudEvents") {
-    return "CloudEvents";
-  }
-
-  throw new Error("CT_DELIVERY_FORMAT must be either Platform or CloudEvents");
 }
 
 function apiUrlFromRegion(region: string): string {
@@ -252,14 +275,6 @@ function apiUrlFromRegion(region: string): string {
 
 function authUrlFromRegion(region: string): string {
   return `https://auth.${region}.commercetools.com`;
-}
-
-function requireEnv(env: Env, key: string): string {
-  const value = env[key];
-  if (!value) {
-    throw new Error(`${key} is required`);
-  }
-  return value;
 }
 
 function parsePositiveInteger(

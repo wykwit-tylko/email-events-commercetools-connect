@@ -1,6 +1,13 @@
-import { loadAppConfig, loadCtpConfig, type AppConfig } from "./config/env.js";
+import {
+  loadAppConfig,
+  loadCtpConfig,
+  type AppConfig,
+  type PublisherConfig,
+} from "./config/env.js";
 import { InspectionStore } from "./dev-inspection/inspection-store.js";
 import { CloudflareQueuePublisher } from "./infra/cloudflare-queue-publisher.js";
+import { CompositePublisher } from "./infra/composite-publisher.js";
+import { HttpWebhookPublisher } from "./infra/http-webhook-publisher.js";
 import type { CommerceNotificationPublisher } from "./infra/commerce-notification-publisher.js";
 import { CommercetoolsClient } from "./infra/commercetools-client.js";
 import { createApp } from "./server/app.js";
@@ -17,7 +24,7 @@ async function main(): Promise<void> {
 
   logger.info("event proxy starting", {
     port: config.port,
-    publisherType: config.publisherConfig.type,
+    publisherTypes: config.publisherConfigs.map((publisher) => publisher.type),
     messageTypes: config.messageTypes,
     maxBodyBytes: config.maxBodyBytes,
     forwardingTimeoutMs: config.forwardingTimeoutMs,
@@ -45,15 +52,34 @@ async function main(): Promise<void> {
 }
 
 function createPublisher(config: AppConfig): CommerceNotificationPublisher {
-  const publisherConfig = config.publisherConfig;
+  const publishers = config.publisherConfigs.map((publisherConfig) =>
+    createSinglePublisher(publisherConfig, config.forwardingTimeoutMs),
+  );
 
+  if (publishers.length === 1) {
+    return publishers[0];
+  }
+
+  return new CompositePublisher(publishers);
+}
+
+function createSinglePublisher(
+  publisherConfig: PublisherConfig,
+  timeoutMs: number,
+): CommerceNotificationPublisher {
   switch (publisherConfig.type) {
     case "cloudflare-queue":
       return new CloudflareQueuePublisher({
         accountId: publisherConfig.accountId,
         queueId: publisherConfig.queueId,
         apiToken: publisherConfig.apiToken,
-        timeoutMs: config.forwardingTimeoutMs,
+        timeoutMs,
+      });
+    case "http-webhook":
+      return new HttpWebhookPublisher({
+        endpointUrl: publisherConfig.endpointUrl,
+        emailEventSecret: publisherConfig.emailEventSecret,
+        timeoutMs,
       });
   }
 }

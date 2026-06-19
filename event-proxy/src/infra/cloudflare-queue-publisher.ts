@@ -17,7 +17,7 @@ export class CloudflareQueuePublisher implements CommerceNotificationPublisher {
     this.endpointUrl = `https://api.cloudflare.com/client/v4/accounts/${options.accountId}/queues/${options.queueId}/messages`;
   }
 
-  async publish(payload: unknown, options: PublishOptions = {}): Promise<void> {
+  async publish(payload: unknown, _options: PublishOptions = {}): Promise<void> {
     const abortController = new AbortController();
     const timeout = setTimeout(() => abortController.abort(), this.options.timeoutMs);
 

@@ -25,13 +25,20 @@ describe("CloudflareQueuePublisher", () => {
     );
 
     expect(fetchMock).toHaveBeenCalledOnce();
-    const [url, init] = fetchMock.mock.calls[0] || [];
+    const call = fetchMock.mock.calls[0];
+    if (!call) {
+      throw new Error("fetch was not called");
+    }
+    const [url, init] = call;
+    if (!init) {
+      throw new Error("fetch init missing");
+    }
     expect(url).toBe(
       "https://api.cloudflare.com/client/v4/accounts/account-id/queues/queue-id/messages",
     );
-    expect(init?.method).toBe("POST");
-    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer api-token");
-    const body = JSON.parse(init?.body as string) as {
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer api-token");
+    const body = JSON.parse(init.body as string) as {
       content_type: string;
       body: { type: string };
     };

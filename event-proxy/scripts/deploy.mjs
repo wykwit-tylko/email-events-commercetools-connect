@@ -224,17 +224,15 @@ function b64(value) {
 // ─── Publisher Config Auto-Construction ────────────────────────────────────────
 
 function buildPublisherConfig(env) {
-  // If already explicitly configured, validate and return it
+  // If already explicitly configured, validate and return it as an array.
   if (env.OUTBOUND_PUBLISHER_CONFIG) {
     try {
       const parsed = JSON.parse(env.OUTBOUND_PUBLISHER_CONFIG);
-      if (parsed?.type !== "cloudflare-queue") {
-        throw new Error("OUTBOUND_PUBLISHER_CONFIG.type must be cloudflare-queue");
+      const entries = Array.isArray(parsed) ? parsed : [parsed];
+      if (entries.length === 0) {
+        throw new Error("OUTBOUND_PUBLISHER_CONFIG array must contain at least one publisher");
       }
-      if (!parsed.accountId || !parsed.queueId || !parsed.apiToken) {
-        throw new Error("OUTBOUND_PUBLISHER_CONFIG must contain accountId, queueId, and apiToken");
-      }
-      return parsed;
+      return entries.map((entry, index) => validatePublisherEntry(entry, index));
     } catch (e) {
       console.error(`Error: Invalid OUTBOUND_PUBLISHER_CONFIG: ${e.message}`);
       process.exit(1);
@@ -257,12 +255,43 @@ function buildPublisherConfig(env) {
     process.exit(1);
   }
 
-  return {
-    type: "cloudflare-queue",
-    accountId,
-    queueId,
-    apiToken,
-  };
+  return [
+    {
+      type: "cloudflare-queue",
+      accountId,
+      queueId,
+      apiToken,
+    },
+  ];
+}
+
+function validatePublisherEntry(entry, index) {
+  const path = `OUTBOUND_PUBLISHER_CONFIG[${index}]`;
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new Error(`${path} must be an object`);
+  }
+  if (entry.type === "cloudflare-queue") {
+    if (!entry.accountId || !entry.queueId || !entry.apiToken) {
+      throw new Error(`${path} must contain accountId, queueId, and apiToken`);
+    }
+    return {
+      type: "cloudflare-queue",
+      accountId: entry.accountId,
+      queueId: entry.queueId,
+      apiToken: entry.apiToken,
+    };
+  }
+  if (entry.type === "http-webhook") {
+    if (!entry.endpointUrl || !entry.emailEventSecret) {
+      throw new Error(`${path} must contain endpointUrl and emailEventSecret`);
+    }
+    return {
+      type: "http-webhook",
+      endpointUrl: entry.endpointUrl,
+      emailEventSecret: entry.emailEventSecret,
+    };
+  }
+  throw new Error(`${path}.type must be cloudflare-queue or http-webhook`);
 }
 
 // ─── Config Flags Builder ────────────────────────────────────────────────────
@@ -458,7 +487,7 @@ function verifyConnectorSupportsProject(projectKey) {
       .replace(/\]$/, "")
       .split(",")
       .map((p) => {
-        const cleaned = p.trim().replace(/['"\[\]]/g, "");
+        const cleaned = p.trim().replace(/['"[\]]/g, "");
         // The CLI outputs projects as "region:projectKey" (e.g. "europe-west1.gcp:tylko-furniture")
         // Strip the region prefix to get the bare project key for comparison
         const colonIdx = cleaned.lastIndexOf(":");
@@ -790,9 +819,14 @@ async function main() {
 
   console.log(`Region: ${resolvedRegion}`);
   console.log(`Project: ${env.CTP_PROJECT_KEY}`);
-  console.log(
-    `Publisher: cloudflare-queue (account=${publisherConfig.accountId}, queue=${publisherConfig.queueId})`,
-  );
+  console.log(`Publishers (${publisherConfig.length}):`);
+  for (const p of publisherConfig) {
+    if (p.type === "cloudflare-queue") {
+      console.log(`  - cloudflare-queue (account=${p.accountId}, queue=${p.queueId})`);
+    } else {
+      console.log(`  - http-webhook (endpoint=${p.endpointUrl})`);
+    }
+  }
   console.log(`Step 1 completed in ${formatDuration(Date.now() - stepLoadStart)}\n`);
 
   if (dryRun) {

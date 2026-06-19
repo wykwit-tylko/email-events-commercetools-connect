@@ -1,6 +1,6 @@
 # Event Proxy
 
-A minimal commercetools Connect event application that forwards Commerce Notifications to Cloudflare Queue for an email Worker.
+A minimal commercetools Connect event application that forwards Commerce Notifications to outbound publishers (Cloudflare Queue or HTTP webhooks) for downstream consumers. The email Worker consumes the queue, while the store backend can receive signed webhook deliveries.
 
 The proxy does not decide email intent. It does not choose recipients, templates, suppression rules, or whether an email should be sent.
 
@@ -96,6 +96,9 @@ DRY_RUN_FORWARDING=true \
 DEV_INSPECTION_ENABLED=true \
 DEV_INSPECTION_TOKEN=change-me-inspection-token \
 npm run dev
+
+# Or with an HTTP webhook instead:
+# OUTBOUND_PUBLISHER_CONFIG='{"type":"http-webhook","endpointUrl":"https://store.local/api/webhooks/events","emailEventSecret":"local-secret"}'
 ```
 
 Post a sample Platform Commerce Notification:
@@ -165,7 +168,7 @@ npm run deploy -- --dry-run   # preview config without side effects
 The deploy script:
 
 1. Reads `.env` from the working directory
-2. Auto-constructs `OUTBOUND_PUBLISHER_CONFIG` from `CF_ACCOUNT_ID`, `CF_QUEUE_ID`, `CF_QUEUE_API_TOKEN` if the full JSON is not present
+2. Auto-constructs `OUTBOUND_PUBLISHER_CONFIG` from `CF_ACCOUNT_ID`, `CF_QUEUE_ID`, `CF_QUEUE_API_TOKEN` if the full JSON is not present (single cloudflare-queue publisher only)
 3. Validates prerequisites (commercetools CLI installed, credentials present)
 4. Authenticates and stages the connector from the latest git tag
 5. Publishes the staged connector
@@ -173,7 +176,7 @@ The deploy script:
 7. Generates base64-encoded configuration values for comma-containing values
 
 **How comma-containing configs work:**
-The commercetools CLI `--configuration` flag splits values on commas. The deploy script transparently **base64-encodes** them with a `b64:` prefix. The event-proxy app detects and decodes them at startup.
+The commercetools CLI `--configuration` flag splits values on commas. The deploy script transparently **base64-encodes** them with a `b64:` prefix. The app detects and decodes them at startup.
 
 **Known limitation:** `commercetools connect deployment create` or update can return "Access denied" depending on your API client's Connect permissions. If this happens:
 
@@ -184,7 +187,7 @@ The commercetools CLI `--configuration` flag splits values on commas. The deploy
 Required `.env` variables:
 
 - `CTP_CLIENT_ID`, `CTP_CLIENT_SECRET`, `CTP_PROJECT_KEY`, `CTP_REGION` (or `CTP_AUTH_URL`)
-- Either `OUTBOUND_PUBLISHER_CONFIG` as JSON, or `CF_ACCOUNT_ID` + `CF_QUEUE_ID` + `CF_QUEUE_API_TOKEN`
+- Either `OUTBOUND_PUBLISHER_CONFIG` as JSON (single object or array for fan-out), or `CF_ACCOUNT_ID` + `CF_QUEUE_ID` + `CF_QUEUE_API_TOKEN` (single cloudflare-queue only)
 - `CT_MESSAGE_TYPES` (e.g. `OrderCreated,CustomerEmailTokenCreated,CustomerPasswordTokenCreated`)
 
 The `connector:post-deploy` hook automatically creates the commercetools Subscription after deployment.

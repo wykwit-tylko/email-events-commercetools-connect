@@ -27,7 +27,7 @@ deployAs:
           required: false
           default: "2000"
         - key: DRY_RUN_FORWARDING
-          description: Receive and inspect Commerce Notifications without forwarding to Cloudflare Queue
+          description: Receive and inspect Commerce Notifications without forwarding to outbound publishers
           required: false
           default: "false"
         - key: DEV_INSPECTION_ENABLED

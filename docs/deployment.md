@@ -129,7 +129,7 @@ The connector inherits a commercetools API client with `manage_subscriptions` an
 1. Keep `EMAIL_SENDING_ENABLED=false` for the first queue delivery test.
 2. Deploy the Worker.
 3. Deploy the Event Proxy with `DRY_RUN_FORWARDING=false`.
-4. Trigger an `OrderCreated`, `CustomerEmailTokenCreated`, or `CustomerPasswordTokenCreated` Commerce Notification in the commercetools project.
+4. Trigger an `OrderCreated`, `CustomerEmailTokenCreated`, `CustomerPasswordTokenCreated`, or successful Payment transaction Commerce Notification in the commercetools project.
 5. Check Worker logs for `email-worker processing message`.
 6. Enable email sending only after queue delivery, deduplication, sender domain, and template output are verified.
 

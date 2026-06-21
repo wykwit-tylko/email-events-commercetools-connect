@@ -188,7 +188,7 @@ Required `.env` variables:
 
 - `CTP_CLIENT_ID`, `CTP_CLIENT_SECRET`, `CTP_PROJECT_KEY`, `CTP_REGION` (or `CTP_AUTH_URL`)
 - Either `OUTBOUND_PUBLISHER_CONFIG` as JSON (single object or array for fan-out), or `CF_ACCOUNT_ID` + `CF_QUEUE_ID` + `CF_QUEUE_API_TOKEN` (single cloudflare-queue only)
-- `CT_MESSAGE_TYPES` (e.g. `OrderCreated,CustomerEmailTokenCreated,CustomerPasswordTokenCreated`)
+- `CT_MESSAGE_TYPES` (e.g. `OrderCreated,CustomerEmailTokenCreated,CustomerPasswordTokenCreated,PaymentTransactionAdded,PaymentTransactionStateChanged`)
 
 The `connector:post-deploy` hook automatically creates the commercetools Subscription after deployment.
 
@@ -203,6 +203,7 @@ The `connector:post-deploy` hook automatically creates the commercetools Subscri
    - `EMAIL` — Cloudflare Email Service binding
    - `EMAIL_DEDUPE` — KV namespace for deduplication
    - `FROM_EMAIL` — sender address
+   - `INTERNAL_NOTIFICATION_EMAILS` — comma-separated internal recipients for Payment transaction notifications
    - `STORE_URL` — storefront URL for links (e.g. `https://shelfmarket.tylko.dev`)
    - `ORDER_LINK_SECRET` — shared with the storefront, signs guest order links in order confirmation emails (links omit the key when unset)
 

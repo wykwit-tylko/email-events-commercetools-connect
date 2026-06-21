@@ -9,6 +9,9 @@ EMAIL_SENDING_ENABLED = "true"
 # Sender address for all outbound emails
 FROM_EMAIL = "your-sender@example.com"
 
+# Internal recipients for verbose Payment transaction notifications
+INTERNAL_NOTIFICATION_EMAILS = "ops@example.com,finance@example.com"
+
 # KV deduplication entry TTL in seconds (30 days)
 DEDUPE_TTL_SECONDS = "2592000"
 

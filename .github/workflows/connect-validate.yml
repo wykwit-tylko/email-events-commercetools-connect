@@ -1,0 +1,53 @@
+name: Connect validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-connect-app:
+    name: Validate commercetools Connect app
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            event-proxy/package-lock.json
+            email-worker/package-lock.json
+
+      - name: Install event-proxy dependencies
+        run: npm ci --prefix event-proxy
+
+      - name: Install email-worker dependencies
+        run: npm ci --prefix email-worker
+
+      - name: Build event-proxy
+        run: npm run build --prefix event-proxy
+
+      - name: Build email-worker
+        run: npm run build --prefix email-worker
+
+      - name: Test event-proxy
+        run: npm run test --prefix event-proxy
+
+      - name: Test email-worker
+        run: npm run test --prefix email-worker
+
+      - name: Install commercetools CLI
+        run: npm install --global @commercetools/cli@0.0.17
+
+      - name: Validate Connect app
+        run: commercetools connect validate .

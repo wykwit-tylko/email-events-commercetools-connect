@@ -2,6 +2,7 @@ import { type CommerceNotification, type Env, type QueuePayload } from "../env";
 import { handleCustomerEmailVerification } from "../notifications/customer-email-verification/handler";
 import { handleCustomerPasswordReset } from "../notifications/customer-password-reset/handler";
 import { handleOrderCreated } from "../notifications/order-created/handler";
+import { handlePaymentTransactionInternal } from "../notifications/payment-transaction-internal/handler";
 import { errorFields, logger } from "../shared/logger";
 import { incrementStats } from "../stats/counters";
 
@@ -43,6 +44,11 @@ async function handleQueueMessage(message: Message<CommerceNotification>, env: E
 
     case "CustomerPasswordTokenCreated":
       await handleCustomerPasswordReset(message, env);
+      return;
+
+    case "PaymentTransactionAdded":
+    case "PaymentTransactionStateChanged":
+      await handlePaymentTransactionInternal(message, env);
       return;
 
     default:

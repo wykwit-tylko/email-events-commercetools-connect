@@ -205,6 +205,148 @@ describe("handleQueue", () => {
       ignored: 1,
     });
   });
+
+  it("sends internal email for successful PaymentTransactionAdded notifications", async () => {
+    const env = createTestEnv({
+      emailSendingEnabled: true,
+      internalNotificationEmails: "ops@example.com",
+    });
+    const message = createPaymentTransactionAddedMessage();
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toEqual([
+      expect.objectContaining({
+        to: "ops@example.com",
+        from: "orders@example.com",
+        subject: "Payment transaction succeeded: payment-id",
+      }),
+    ]);
+    expect(env.sentEmails[0]?.html).toContain(
+      "https://mc.europe-west1.gcp.commercetools.com/shelfmarket/payments/payment-id",
+    );
+    expect(env.sentEmails[0]?.text).toContain("transaction-id");
+    await expect(env.EMAIL_DEDUPE.get("sent:payment-added-id")).resolves.not.toBeNull();
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      emailsSent: 1,
+    });
+  });
+
+  it("sends internal email for successful PaymentTransactionStateChanged notifications", async () => {
+    const env = createTestEnv({
+      emailSendingEnabled: true,
+      internalNotificationEmails: "ops@example.com,finance@example.com",
+    });
+    const message = createPaymentTransactionStateChangedMessage();
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toEqual([
+      expect.objectContaining({ to: "ops@example.com" }),
+      expect.objectContaining({ to: "finance@example.com" }),
+    ]);
+    expect(env.sentEmails[0]?.text).toContain("Payment ID: payment-id");
+    expect(env.sentEmails[0]?.text).toContain("Transaction state: Success");
+    await expect(env.EMAIL_DEDUPE.get("sent:payment-state-id")).resolves.not.toBeNull();
+  });
+
+  it("ignores non-Success Payment transaction notifications", async () => {
+    const env = createTestEnv({ emailSendingEnabled: true });
+    const message = createMessage({
+      notificationType: "Message",
+      id: "payment-state-id",
+      type: "PaymentTransactionStateChanged",
+      resource: { typeId: "payment", id: "payment-id" },
+      transactionId: "transaction-id",
+      state: "Pending",
+    });
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(0);
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      ignored: 1,
+    });
+  });
+
+  it("ignores malformed Payment transaction notifications", async () => {
+    const env = createTestEnv({ emailSendingEnabled: true });
+    const message = createMessage({
+      notificationType: "Message",
+      id: "payment-state-id",
+      type: "PaymentTransactionStateChanged",
+      state: "Success",
+    });
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(0);
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      ignored: 1,
+    });
+  });
+
+  it("skips duplicate Payment transaction notifications", async () => {
+    const env = createTestEnv({
+      emailSendingEnabled: true,
+      internalNotificationEmails: "ops@example.com",
+    });
+    await env.EMAIL_DEDUPE.put("sent:payment-added-id", "already-sent");
+    const message = createPaymentTransactionAddedMessage();
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(0);
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      duplicate: 1,
+    });
+  });
+
+  it("skips Payment transaction emails when sending is disabled", async () => {
+    const env = createTestEnv({
+      emailSendingEnabled: false,
+      internalNotificationEmails: "ops@example.com",
+    });
+    const message = createPaymentTransactionAddedMessage();
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(true);
+    expect(env.sentEmails).toHaveLength(0);
+    await expect(env.EMAIL_DEDUPE.get("sent:payment-added-id")).resolves.toBeNull();
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      disabled: 1,
+    });
+  });
+
+  it("retries Payment transaction emails when sending fails", async () => {
+    const env = createTestEnv({
+      emailSendingEnabled: true,
+      internalNotificationEmails: "ops@example.com",
+      sendError: new Error("send failed"),
+    });
+    const message = createPaymentTransactionAddedMessage();
+
+    await handleQueue(createBatch([message]), env);
+
+    expect(message.acked).toBe(false);
+    expect(message.retried).toBe(true);
+    await expect(env.EMAIL_DEDUPE.get("sent:payment-added-id")).resolves.toBeNull();
+    await expect(getStats(env)).resolves.toMatchObject({
+      processed: 1,
+      errors: 1,
+    });
+  });
 });
 
 type TestEnv = Env & {
@@ -238,7 +380,11 @@ class TestKVNamespace {
   }
 }
 
-function createTestEnv(options: { emailSendingEnabled: boolean; sendError?: Error }): TestEnv {
+function createTestEnv(options: {
+  emailSendingEnabled: boolean;
+  sendError?: Error;
+  internalNotificationEmails?: string;
+}): TestEnv {
   const sentEmails: TestEnv["sentEmails"] = [];
 
   return {
@@ -254,6 +400,7 @@ function createTestEnv(options: { emailSendingEnabled: boolean; sendError?: Erro
     },
     EMAIL_SENDING_ENABLED: String(options.emailSendingEnabled),
     FROM_EMAIL: "orders@example.com",
+    INTERNAL_NOTIFICATION_EMAILS: options.internalNotificationEmails ?? "ops@example.com",
     DEDUPE_TTL_SECONDS: "2592000",
     STORE_URL: "https://shelfmarket.tylko.dev",
     sentEmails,
@@ -270,6 +417,40 @@ function createOrderCreatedMessage(): TestMessage {
       customerEmail: "customer@example.com",
       orderNumber: "ORD-1",
     },
+  });
+}
+
+function createPaymentTransactionAddedMessage(): TestMessage {
+  return createMessage({
+    notificationType: "Message",
+    id: "payment-added-id",
+    type: "PaymentTransactionAdded",
+    resource: { typeId: "payment", id: "payment-id" },
+    resourceVersion: 12,
+    sequenceNumber: 34,
+    createdAt: "2026-06-20T12:00:00.000Z",
+    transaction: {
+      id: "transaction-id",
+      type: "Charge",
+      state: "Success",
+      amount: { centAmount: 12345, currencyCode: "EUR" },
+      interfaceId: "psp-transaction-id",
+      interactionId: "psp-interaction-id",
+    },
+  });
+}
+
+function createPaymentTransactionStateChangedMessage(): TestMessage {
+  return createMessage({
+    notificationType: "Message",
+    id: "payment-state-id",
+    type: "PaymentTransactionStateChanged",
+    resource: { typeId: "payment", id: "payment-id" },
+    resourceVersion: 13,
+    sequenceNumber: 35,
+    transactionId: "transaction-id",
+    state: "Success",
+    createdAt: "2026-06-20T12:05:00.000Z",
   });
 }
 

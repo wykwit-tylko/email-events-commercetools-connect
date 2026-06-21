@@ -3,6 +3,7 @@ export type Env = {
   EMAIL: EmailBinding;
   EMAIL_SENDING_ENABLED: string;
   FROM_EMAIL: string;
+  INTERNAL_NOTIFICATION_EMAILS?: string;
   DEDUPE_TTL_SECONDS: string;
   STORE_URL: string;
   /** Shared secret with the storefront for guest order link keys; links omit the key when unset. */
@@ -34,4 +35,9 @@ export function emailSendingEnabled(env: Env): boolean {
 export function dedupeTtlSeconds(env: Env): number {
   const value = Number(env.DEDUPE_TTL_SECONDS || "2592000");
   return Number.isInteger(value) && value > 0 ? value : 2_592_000;
+}
+
+export function internalNotificationEmails(env: Env): string[] {
+  const raw = env.INTERNAL_NOTIFICATION_EMAILS ?? "";
+  return [...new Set(raw.split(",").map((email) => email.trim()).filter(Boolean))];
 }

@@ -10,8 +10,8 @@ The proxy does not decide email intent. It does not choose recipients, templates
 - Publishes the Commerce Notification body through the configured outbound publisher adapter.
 - Parses the Commerce Notification as JSON at the publisher seam so the proxy can optionally filter by fields like `type`.
 - Can filter forwarded Commerce Notifications with `CT_MESSAGE_TYPES` while leaving email intent to the Worker.
-- Returns `200` only after forwarding succeeds, unless dry-run mode is enabled.
-- Returns non-2xx on forwarding failure or timeout so Connect can retry.
+- Returns `200` as soon as at least one outbound publisher accepts the notification (or immediately in dry-run mode), so a single slow or failing publisher does not trigger commercetools redelivery for the others. With multiple publishers, partial failures are logged as warnings rather than retried via commercetools.
+- Returns non-2xx only when every outbound publisher fails, or on forwarding timeout, so Connect can retry.
 - Does not normalize, deduplicate, or decide email intent.
 - Does not log raw Commerce Notification payloads.
 - Can expose development-only in-memory inspection endpoints.

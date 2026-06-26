@@ -60,7 +60,7 @@ function createPublisher(config: AppConfig): CommerceNotificationPublisher {
     return publishers[0];
   }
 
-  return new CompositePublisher(publishers);
+  return new CompositePublisher(publishers, logger);
 }
 
 function createSinglePublisher(

@@ -12,6 +12,7 @@ export class FakePublisher implements CommerceNotificationPublisher {
   ready = true;
   error: Error | undefined;
   neverResolve = false;
+  delayUntil: Promise<void> | undefined;
 
   async publish(payload: unknown, options?: PublishOptions): Promise<void> {
     if (this.error) {
@@ -21,6 +22,10 @@ export class FakePublisher implements CommerceNotificationPublisher {
     if (this.neverResolve) {
       await new Promise(() => undefined);
       return;
+    }
+
+    if (this.delayUntil) {
+      await this.delayUntil;
     }
 
     this.published.push({
@@ -53,4 +58,16 @@ export function createSilentLogger(): Logger & { entries: unknown[] } {
       entries.push({ level: "error", message, fields });
     },
   };
+}
+
+export function createDeferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+export async function flushAsyncWork(): Promise<void> {
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
 }

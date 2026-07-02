@@ -28,11 +28,20 @@ jobs:
             event-proxy/package-lock.json
             email-worker/package-lock.json
 
+      # npm is the canonical package manager: package-lock.json is committed and
+      # used by `npm ci` here. pnpm is optional for local use only; pnpm-lock.yaml
+      # files are gitignored so the two never diverge in version control.
       - name: Install event-proxy dependencies
         run: npm ci --prefix event-proxy
 
       - name: Install email-worker dependencies
         run: npm ci --prefix email-worker
+
+      - name: Audit event-proxy runtime dependencies (high or critical)
+        run: npm audit --audit-level=high --omit=dev --prefix event-proxy
+
+      - name: Audit worker runtime dependencies (high or critical)
+        run: npm audit --audit-level=high --omit=dev --prefix email-worker
 
       - name: Build event-proxy
         run: npm run build --prefix event-proxy
@@ -51,3 +60,27 @@ jobs:
 
       - name: Validate Connect app
         run: commercetools connect validate .
+
+  # Runs the email worker end-to-end test inside the real Workers runtime
+  # (Miniflare/workerd). Isolated in its own job so a workerd hiccup cannot
+  # block the commercetools Connect validation above; runs in parallel with it.
+  email-worker-e2e:
+    name: Email Worker e2e (Workers runtime)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: email-worker/package-lock.json
+
+      - name: Install email-worker dependencies
+        run: npm ci --prefix email-worker
+
+      - name: Test end-to-end (real Workers runtime)
+        run: npm run test:e2e --prefix email-worker
+

@@ -16,6 +16,11 @@ export type MessageSubscription = {
   resourceTypeId: string;
 };
 
+export type SubscriptionFormat = {
+  type: string;
+  cloudEventsVersion?: string;
+};
+
 export type Subscription = {
   id: string;
   version: number;
@@ -24,14 +29,14 @@ export type Subscription = {
   messages: MessageSubscription[];
   changes: unknown[];
   events: unknown[];
-  format?: { type: string; cloudEventsVersion?: string };
+  format?: SubscriptionFormat;
 };
 
 export type SubscriptionDraft = {
   key: string;
   destination: Destination;
   messages: MessageSubscription[];
-  format: { type: string; cloudEventsVersion?: string };
+  format: SubscriptionFormat;
 };
 
 export class CommercetoolsClient {
@@ -202,10 +207,7 @@ export function buildDestination(config: SubscriptionConfig): Destination {
   throw new Error(`Unsupported CONNECT_SUBSCRIPTION_DESTINATION: ${destination}`);
 }
 
-export function buildFormat(deliveryFormat: DeliveryFormat): {
-  type: string;
-  cloudEventsVersion?: string;
-} {
+export function buildFormat(deliveryFormat: DeliveryFormat): SubscriptionFormat {
   if (deliveryFormat === "CloudEvents") {
     return { type: "CloudEvents", cloudEventsVersion: "1.0" };
   }

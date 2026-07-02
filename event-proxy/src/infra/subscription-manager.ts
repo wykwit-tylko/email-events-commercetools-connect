@@ -5,6 +5,7 @@ import {
   type Destination,
   type MessageSubscription,
   type Subscription,
+  type SubscriptionFormat,
 } from "./commercetools-client.js";
 import type { SubscriptionConfig } from "../config/env.js";
 
@@ -94,7 +95,7 @@ function assertExpectedShape(subscription: Subscription): void {
 
 function sameFormat(
   actual: Subscription["format"] | undefined,
-  expected: ReturnType<typeof buildFormat>,
+  expected: SubscriptionFormat,
 ): boolean {
   const actualType = actual?.type || "Platform";
   return (

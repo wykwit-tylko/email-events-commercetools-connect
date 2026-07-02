@@ -1,3 +1,4 @@
+import type { StatsDurableObject } from "./stats/stats-do";
 export type Env = {
   EMAIL_DEDUPE: KVNamespace;
   EMAIL: EmailBinding;
@@ -8,6 +9,21 @@ export type Env = {
   STORE_URL: string;
   /** Shared secret with the storefront for guest order link keys; links omit the key when unset. */
   ORDER_LINK_SECRET?: string;
+
+  /** Atomic counters. Single global Durable Object instance, addressed by name. */
+  STATS: DurableObjectNamespace<StatsDurableObject>;
+
+  /** Producer binding back to the main queue, used to replay dead-lettered messages. */
+  EMAIL_QUEUE: Queue<QueuePayload>;
+
+  /** Name of the dead-letter queue this worker also consumes for alerting and replay. */
+  DLQ_QUEUE_NAME: string;
+  /** TTL (seconds) for replay-backup copies of dead-lettered messages stored in KV. */
+  DLQ_REPLAY_TTL_SECONDS?: string;
+  /** Bearer token gating the /admin/* endpoints (replay, inspection). Required for replay. */
+  ADMIN_TOKEN?: string;
+  /** Optional webhook URL POSTed when the dead-letter queue receives a message. */
+  ALERT_WEBHOOK_URL?: string;
 };
 
 export type EmailBinding = {
@@ -34,6 +50,11 @@ export function emailSendingEnabled(env: Env): boolean {
 
 export function dedupeTtlSeconds(env: Env): number {
   const value = Number(env.DEDUPE_TTL_SECONDS || "2592000");
+  return Number.isInteger(value) && value > 0 ? value : 2_592_000;
+}
+
+export function dlqReplayTtlSeconds(env: Env): number {
+  const value = Number(env.DLQ_REPLAY_TTL_SECONDS || "2592000");
   return Number.isInteger(value) && value > 0 ? value : 2_592_000;
 }
 

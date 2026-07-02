@@ -18,14 +18,43 @@ DEDUPE_TTL_SECONDS = "2592000"
 # Storefront URL used in email links (e.g. order details, password reset)
 STORE_URL = "https://your-store.example.com"
 
+# Name of the dead-letter queue this worker also consumes for alerting/replay.
+# Must match the dead_letter_queue of the main consumer below.
+DLQ_QUEUE_NAME = "email-events-dlq"
+
+# TTL (seconds) for replay-backup copies of dead-lettered messages in KV (30 days)
+DLQ_REPLAY_TTL_SECONDS = "2592000"
+
 # Shared with the storefront's NUXT_ORDER_LINK_SECRET; signs guest order links.
 # Production must NOT keep this in [vars] — set it as a secret instead:
 #   wrangler secret put ORDER_LINK_SECRET
 # ORDER_LINK_SECRET = "dev-only-secret"
 
+# Bearer token gating the /admin/* endpoints (replay, DLQ inspection).
+# Set as a secret in production:
+#   wrangler secret put ADMIN_TOKEN
+# ADMIN_TOKEN = "dev-only-admin-token"
+
+# Optional webhook POSTed when a message lands in the dead-letter queue, for
+# teams without log-based alerting. Set as a secret in production:
+#   wrangler secret put ALERT_WEBHOOK_URL
+# ALERT_WEBHOOK_URL = "https://hooks.example.com/email-dlq"
+
+# --- Atomic counters (Durable Object) --------------------------------------
+# Counters live in a single global Durable Object so increments serialize and
+# /stats reads exact totals. Requires the Workers Paid plan in production.
+[[durable_objects.bindings]]
+name = "STATS"
+class_name = "StatsDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["StatsDurableObject"]
+
+# --- Main queue consumer ----------------------------------------------------
 [[queues.consumers]]
 # Queue that carries Commerce Notifications from the proxy
-queue = "your-queue-name"
+queue = "commerce-notifications-email-dev"
 max_batch_size = 10
 max_batch_timeout = 5
 # Redeliver failed messages (e.g. transient Email API outages) up to 5 times.
@@ -35,8 +64,23 @@ max_retries = 5
 #   wrangler queues create email-events-dlq
 dead_letter_queue = "email-events-dlq"
 
+# --- Dead-letter queue consumer --------------------------------------------
+# Consumes the DLQ so it cannot grow unbounded: each exhausted message is
+# logged at error level (the alert signal), counted, and backed up to KV for
+# replay. There is intentionally no dead_letter_queue here (no DLQ for the DLQ).
+[[queues.consumers]]
+queue = "email-events-dlq"
+max_batch_size = 10
+max_retries = 1
+
+# --- Producer binding (for DLQ replay) -------------------------------------
+# Lets /admin/replay-dlq re-enqueue backed-up messages onto the main queue.
+[[queues.producers]]
+binding = "EMAIL_QUEUE"
+queue = "commerce-notifications-email-dev"
+
 [[kv_namespaces]]
-# KV namespace for deduplication (sent:${notification.id})
+# KV namespace for deduplication (sent:${notification.id}) and DLQ replay backup
 binding = "EMAIL_DEDUPE"
 id = "your-kv-namespace-id"
 

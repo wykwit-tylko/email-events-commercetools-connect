@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Env, QueuePayload } from "../env";
 import { getStats } from "../stats/counters";
+import { FakeKV, FakeQueue, FakeStatsNamespace } from "../../test/fakes";
 import { handleQueue } from "./handler";
 
 describe("handleQueue", () => {
@@ -350,7 +351,9 @@ describe("handleQueue", () => {
 });
 
 type TestEnv = Env & {
-  EMAIL_DEDUPE: TestKVNamespace;
+  EMAIL_DEDUPE: FakeKV;
+  EMAIL_QUEUE: FakeQueue;
+  STATS: FakeStatsNamespace;
   sentEmails: Array<{
     to: string;
     from: string;
@@ -360,26 +363,6 @@ type TestEnv = Env & {
   }>;
 };
 
-class TestKVNamespace {
-  private readonly values = new Map<string, string>();
-  readonly failGetKeys = new Set<string>();
-  readonly failPutKeys = new Set<string>();
-
-  async get(key: string): Promise<string | null> {
-    if (this.failGetKeys.has(key)) {
-      throw new Error(`KV get failed for ${key}`);
-    }
-    return this.values.get(key) ?? null;
-  }
-
-  async put(key: string, value: string): Promise<void> {
-    if (this.failPutKeys.has(key)) {
-      throw new Error(`KV put failed for ${key}`);
-    }
-    this.values.set(key, value);
-  }
-}
-
 function createTestEnv(options: {
   emailSendingEnabled: boolean;
   sendError?: Error;
@@ -388,7 +371,7 @@ function createTestEnv(options: {
   const sentEmails: TestEnv["sentEmails"] = [];
 
   return {
-    EMAIL_DEDUPE: new TestKVNamespace(),
+    EMAIL_DEDUPE: new FakeKV(),
     EMAIL: {
       async send(message) {
         if (options.sendError) {
@@ -403,6 +386,9 @@ function createTestEnv(options: {
     INTERNAL_NOTIFICATION_EMAILS: options.internalNotificationEmails ?? "ops@example.com",
     DEDUPE_TTL_SECONDS: "2592000",
     STORE_URL: "https://shelfmarket.tylko.dev",
+    DLQ_QUEUE_NAME: "email-events-dlq",
+    STATS: new FakeStatsNamespace(),
+    EMAIL_QUEUE: new FakeQueue(),
     sentEmails,
   } as TestEnv;
 }

@@ -1,0 +1,27 @@
+# Test-only Wrangler config for the end-to-end pool-workers test (npm run
+# test:e2e). Tracked on purpose (NOT ignored): CI and fresh clones need it.
+#
+# Deliberately minimal and LOCAL: no `send_email remote = true`, no real KV id,
+# no secrets — so the test runs under Miniflare with no Cloudflare credentials.
+# The /stats path under test only needs the STATS Durable Object binding; other
+# bindings are omitted because that path does not touch them.
+name = "email-worker-e2e"
+main = "src/index.ts"
+compatibility_date = "2026-06-09"
+
+[vars]
+DLQ_QUEUE_NAME = "email-events-dlq"
+DLQ_REPLAY_TTL_SECONDS = "2592000"
+DEDUPE_TTL_SECONDS = "2592000"
+
+[[durable_objects.bindings]]
+name = "STATS"
+class_name = "StatsDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["StatsDurableObject"]
+
+[[kv_namespaces]]
+binding = "EMAIL_DEDUPE"
+id = "e2e-local"

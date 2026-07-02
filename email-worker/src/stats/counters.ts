@@ -1,47 +1,40 @@
 import type { Env } from "../env";
-import { logger } from "../shared/logger";
+import { errorFields, logger } from "../shared/logger";
+import {
+  emptyStats,
+  GLOBAL_STATS_NAME,
+  type Stats,
+} from "./stats-do";
 
-const STATS_KEY = "stats:summary";
+export { emptyStats, type Stats };
 
-export type Stats = {
-  processed: number;
-  ignored: number;
-  duplicate: number;
-  disabled: number;
-  emailsSent: number;
-  errors: number;
-};
-
-const emptyStats: Stats = {
-  processed: 0,
-  ignored: 0,
-  duplicate: 0,
-  disabled: 0,
-  emailsSent: 0,
-  errors: 0,
-};
-
+/**
+ * Read the current counters from the stats Durable Object. Never throws: stats
+ * are observability, never a reason to fail a queue message.
+ */
 export async function getStats(env: Env): Promise<Stats> {
-  const raw = await env.EMAIL_DEDUPE.get(STATS_KEY);
-  if (!raw) return { ...emptyStats };
   try {
-    const parsed = JSON.parse(raw) as Partial<Stats>;
-    return {
-      processed: parsed.processed ?? 0,
-      ignored: parsed.ignored ?? 0,
-      duplicate: parsed.duplicate ?? 0,
-      disabled: parsed.disabled ?? 0,
-      emailsSent: parsed.emailsSent ?? 0,
-      errors: parsed.errors ?? 0,
-    };
-  } catch {
+    const stub = env.STATS.get(env.STATS.idFromName(GLOBAL_STATS_NAME));
+    return await stub.read();
+  } catch (error) {
+    logger.error("email-worker stats read failed", { ...errorFields(error) });
     return { ...emptyStats };
   }
 }
 
+/**
+ * Atomically increment one counter via the stats Durable Object. Never throws:
+ * a stats failure must not retry (and therefore duplicate) a queue message.
+ */
 export async function incrementStats(env: Env, field: keyof Stats): Promise<void> {
-  const stats = await getStats(env);
-  stats[field] += 1;
-  await env.EMAIL_DEDUPE.put(STATS_KEY, JSON.stringify(stats));
-  logger.info("email-worker stats incremented", { field, value: stats[field] });
+  try {
+    const stub = env.STATS.get(env.STATS.idFromName(GLOBAL_STATS_NAME));
+    await stub.increment(field);
+    logger.info("email-worker stats incremented", { field });
+  } catch (error) {
+    logger.error("email-worker stats increment failed", {
+      field,
+      ...errorFields(error),
+    });
+  }
 }

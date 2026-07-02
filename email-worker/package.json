@@ -8,9 +8,11 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "test": "vitest run",
-    "typegen": "wrangler types"
+    "typegen": "wrangler types",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.20",
     "@cloudflare/workers-types": "^4.20260609.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.8",

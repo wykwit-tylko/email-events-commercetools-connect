@@ -8,7 +8,7 @@ event-proxy/dist/
 event-proxy/node_modules/
 email-worker/.env
 email-worker/.wrangler/
-email-worker/wrangler.toml
+email-worker/wrangler.toml*
 email-worker/coverage/
 email-worker/dist/
 email-worker/node_modules/

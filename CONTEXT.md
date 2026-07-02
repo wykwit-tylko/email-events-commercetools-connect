@@ -1,6 +1,6 @@
 # Event Proxy
 
-This context describes the language for a proxy that receives commercetools-originated notifications and exposes them to a downstream email service.
+This context describes the language shared across the Event Proxy (which receives commercetools-originated notifications) and the downstream email Worker that consumes them as Email Events.
 
 ## Language
 
@@ -31,3 +31,25 @@ _Avoid_: Queue credentials, broker config
 **Message Type Filter**:
 The `CT_MESSAGE_TYPES` allowlist that controls which Commerce Notification types the proxy forwards. Applied after unwrapping the transport envelope but before publishing. Does not affect what the commercetools Subscription subscribes to (that's `CT_MESSAGE_RESOURCE_TYPES`).
 _Avoid_: Message filter, event filter, type whitelist
+
+## Email Worker
+
+**Dead-letter queue (DLQ)**:
+The queue (`email-events-dlq`) that receives messages after they exhaust retries on the main consumer. The Worker also consumes it: each exhausted message is logged at error level, counted, backed up to KV for replay, then acknowledged so the DLQ cannot grow unbounded.
+_Avoid_: Failure queue, error queue, poison queue (it is actively consumed, not a terminal sink)
+
+**Replay**:
+Re-enqueuing backed-up dead-lettered messages from KV onto the main queue via `POST /admin/replay-dlq`, performed manually once the root cause is fixed. Not idempotent: a dead-lettered message has no dedupe key, so replay always re-sends.
+_Avoid_: Retry (retry is the queue's automatic redelivery; replay is the manual operator action)
+
+**Dedupe key**:
+The `sent:<notificationId>` KV entry written only after a successful email send, suppressing duplicate sends across commercetools redeliveries. Absent for messages that reached the DLQ.
+_Avoid_: Idempotency key, sent marker
+
+**Stats counters**:
+The atomic integers (`processed`, `ignored`, `duplicate`, `disabled`, `emailsSent`, `errors`, `dlq`) serialized through a single Durable Object and read via `GET /stats`.
+_Avoid_: Metrics (the Worker does not emit a metrics protocol; these are plain counters)
+
+**Durable Object (STATS)**:
+The single global Workers Durable Object that owns the stats counters; increments serialize through it so reads are exact. Its class must extend `DurableObject` from `cloudflare:workers` for RPC to reach it.
+_Avoid_: Stats worker, counter service

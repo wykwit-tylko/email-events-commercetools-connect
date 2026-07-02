@@ -62,6 +62,9 @@ Common optional runtime variables:
 - `DEV_INSPECTION_TOKEN`, required for development inspection endpoints to be reachable
 - `PORT`, default `8080`
 - `CT_MESSAGE_TYPES`, default empty, meaning all Commerce Notification message types are forwarded
+- `CT_MESSAGE_RESOURCE_TYPES`, the commercetools Subscription's message resource types (see `connect.yaml`). Controls which Commerce Notifications reach the proxy at all
+
+Filtering works in two stages. `CT_MESSAGE_RESOURCE_TYPES` (subscription-level) decides which Commerce Notifications commercetools delivers to the proxy; `CT_MESSAGE_TYPES` (proxy-level) decides which of those the proxy publishes onward to the queue and worker. Set `CT_MESSAGE_TYPES` to the handled types (`OrderCreated,CustomerEmailTokenCreated,CustomerPasswordTokenCreated,PaymentTransactionAdded,PaymentTransactionStateChanged`) so the worker never pays queue cost for messages it would ignore. Narrowing `CT_MESSAGE_RESOURCE_TYPES` further only reduces Connect delivery volume and proxy processing; do not narrow it without confirming, in your commercetools project, which `resourceTypeId` delivers each handled message type (the token messages in particular), or those notifications will stop reaching the proxy.
 
 commercetools deployment credentials:
 
@@ -201,11 +204,18 @@ The `connector:post-deploy` hook automatically creates the commercetools Subscri
    ```
 2. Bindings (`wrangler.toml`) must include:
    - `EMAIL` — Cloudflare Email Service binding
-   - `EMAIL_DEDUPE` — KV namespace for deduplication
+   - `EMAIL_DEDUPE` — KV namespace for deduplication and dead-letter replay backup
+   - `STATS` — Durable Object holding atomic counters (read via `GET /stats`)
+   - `EMAIL_QUEUE` — producer binding to the main queue, used to replay dead-lettered messages
+   - `DLQ_QUEUE_NAME` — name of the dead-letter queue the Worker also consumes
+   - `DLQ_REPLAY_TTL_SECONDS` — TTL (seconds) for dead-letter replay backups kept in KV
    - `FROM_EMAIL` — sender address
    - `INTERNAL_NOTIFICATION_EMAILS` — comma-separated internal recipients for Payment transaction notifications
    - `STORE_URL` — storefront URL for links (e.g. `https://shelfmarket.tylko.dev`)
    - `ORDER_LINK_SECRET` — shared with the storefront, signs guest order links in order confirmation emails (links omit the key when unset)
+   - `ADMIN_TOKEN` — secret gating the `/admin/replay-dlq` and `/admin/dlq` endpoints
+   - `ALERT_WEBHOOK_URL` — optional secret, POSTed when a message lands in the dead-letter queue
+   - The DLQ `[[queues.consumers]]` and the `[[migrations]] new_sqlite_classes` entry for `StatsDurableObject` are also required; see `docs/deployment.md`.
 
 ### Deployment Order
 
@@ -231,7 +241,9 @@ From `email-worker/`:
 ```bash
 npm run dev
 npm test
+npm run test:e2e        # Workers-runtime e2e via Miniflare (see docs/deployment.md)
 npm run build
+npm run typegen         # generate wrangler types
 npm run deploy          # wrangler deploy
 ```
 
